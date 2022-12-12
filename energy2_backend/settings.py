@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-6(4sm%*h69f_8v5##bl!sx9+4s%scz@ewy-sa3hcndsqb!-l!c
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -37,7 +37,17 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'base',
+    'base.sensors',
+    'rest_framework.authtoken'
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication'
+    ]
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -47,6 +57,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
 ]
 
 ROOT_URLCONF = 'energy2_backend.urls'
@@ -69,6 +80,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'energy2_backend.wsgi.application'
+CORS_ORIGIN_ALLOW_ALL = True
 
 
 # Database

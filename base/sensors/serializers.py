@@ -3,6 +3,31 @@ from base.sensors.models import Consumer, Producer, Sensor
 from django.db import transaction
 
 
+class MultiModelSerializer(serializers.HyperlinkedModelSerializer):
+    """
+    Serializer that can manage multiple models being created/updated at once
+    For example when creating Producer or Consumer a Sensor is created in the same process,
+    """
+    models = None
+
+    @transaction.atomic
+    def create(self, validated_data):
+        ModelClass = self.Meta.model
+        data = []
+        for model in self.models:
+            model_name = model[0]
+            model_class = model[1]
+            data.append(validated_data.pop(model_name))
+
+        for i, model in enumerate(self.models):
+            model_name = model[0]
+            model_class = model[1]
+            new_entity = model_class.objects.create(**data[i])
+            validated_data[model_name] = new_entity
+
+        return ModelClass.objects.create(**validated_data)
+
+
 class SensorSerializer(serializers.HyperlinkedModelSerializer):
     id = serializers.IntegerField(read_only=True)
 
@@ -11,7 +36,9 @@ class SensorSerializer(serializers.HyperlinkedModelSerializer):
         fields = "__all__"
 
 
-class ConsumerSerializer(serializers.HyperlinkedModelSerializer):
+class ConsumerSerializer(MultiModelSerializer):
+    models = [('sensor', Sensor)]
+
     id = serializers.IntegerField(read_only=True)
     sensor = SensorSerializer()
 
@@ -19,33 +46,14 @@ class ConsumerSerializer(serializers.HyperlinkedModelSerializer):
         model = Consumer
         fields = "__all__"
 
-    @transaction.atomic
-    def create(self, validated_data):
-        # remove all data related to new sensor
-        sensor = validated_data.pop('sensor')
-        sensor = Sensor.objects.create(**sensor)
-        # set created sensor on new consumer
-        validated_data['sensor'] = sensor
-        consumer = Consumer.objects.create(**validated_data);
 
-        return consumer
+class ProducerSerializer(MultiModelSerializer):
+    models = [('production_sensor', Sensor), ('grid_sensor', Sensor)]
 
-
-class ProducerSerializer(serializers.HyperlinkedModelSerializer):
     id = serializers.IntegerField(read_only=True)
-    sensor = SensorSerializer()
+    production_sensor = SensorSerializer()
+    grid_sensor = SensorSerializer()
 
     class Meta:
         model = Producer
         fields = '__all__'
-
-    @transaction.atomic
-    def create(self, validated_data):
-        # remove all data related to new sensor
-        sensor = validated_data.pop('sensor')
-        sensor = Sensor.objects.create(**sensor)
-        # set created sensor on new consumer
-        validated_data['sensor'] = sensor
-        producer = Producer.objects.create(**validated_data);
-
-        return producer

@@ -3,7 +3,7 @@ from base.sensors.models import Consumer, Producer, Sensor
 from django.db import transaction
 
 
-class MultiModelSerializer(serializers.HyperlinkedModelSerializer):
+class NestedModelSerializer(serializers.HyperlinkedModelSerializer):
     """
     Serializer that can manage multiple models being created/updated at once
     For example when creating Producer or Consumer a Sensor is created in the same process,
@@ -27,6 +27,14 @@ class MultiModelSerializer(serializers.HyperlinkedModelSerializer):
 
         return ModelClass.objects.create(**validated_data)
 
+    """
+        removes all nested data from request, because nested data is not supported by default method
+    """
+    def update(self, instance, validated_data):
+        for model in self.models:
+            validated_data.pop(model[0], None)
+        return super().update(instance, validated_data)
+
 
 class SensorSerializer(serializers.HyperlinkedModelSerializer):
     id = serializers.IntegerField(read_only=True)
@@ -36,10 +44,10 @@ class SensorSerializer(serializers.HyperlinkedModelSerializer):
         fields = "__all__"
 
 
-class ConsumerSerializer(MultiModelSerializer):
+class ConsumerSerializer(NestedModelSerializer):
     models = [('sensor', Sensor)]
 
-    id = serializers.IntegerField(read_only=True)
+    id = serializers.IntegerField()
     sensor = SensorSerializer()
 
     class Meta:
@@ -47,7 +55,7 @@ class ConsumerSerializer(MultiModelSerializer):
         fields = "__all__"
 
 
-class ProducerSerializer(MultiModelSerializer):
+class ProducerSerializer(NestedModelSerializer):
     models = [('production_sensor', Sensor), ('grid_sensor', Sensor)]
 
     id = serializers.IntegerField(read_only=True)

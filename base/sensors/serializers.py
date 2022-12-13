@@ -47,7 +47,7 @@ class SensorSerializer(serializers.HyperlinkedModelSerializer):
 class ConsumerSerializer(NestedModelSerializer):
     models = [('sensor', Sensor)]
 
-    id = serializers.IntegerField()
+    id = serializers.IntegerField(read_only=True)
     sensor = SensorSerializer()
 
     class Meta:

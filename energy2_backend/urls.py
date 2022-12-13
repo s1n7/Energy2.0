@@ -30,12 +30,11 @@ router.register(r'consumers', ConsumerView)
 router.register(r'producers', ProducerView)
 router.register(r'sensors', SensorView)
 router.register(r'readings', ReadingView)
-#router.register(r'contracts', ContractView)
-#router.register(r'rates', RateView)
+router.register(r'contracts', ContractView)
+router.register(r'rates', RateView)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    #path('populate/', populate_view, name="populate"),
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('', include(router.urls)),
     path('login/', obtain_auth_token, name='api_token_auth'),

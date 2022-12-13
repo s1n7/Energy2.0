@@ -3,6 +3,9 @@ from django.contrib.auth.models import User
 
 
 # Create your models here.
+from base.contracts.models import Contract
+
+
 class Sensor(models.Model):
 
     class SensorTypes(models.TextChoices):
@@ -34,3 +37,4 @@ class Consumer(models.Model):
     phone = models.CharField(max_length=15)
     producer = models.ForeignKey(Producer, on_delete=models.CASCADE)
     sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT)
+    contract = models.ForeignKey(Contract, on_delete=models.RESTRICT)

@@ -16,6 +16,9 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework import routers
+
+from base.contracts.views import ContractView, RateView
+from base.data.views import ReadingView
 from base.views import *
 from base.sensors.views import *
 from rest_framework.authtoken.views import obtain_auth_token
@@ -26,9 +29,12 @@ router.register(r'groups', GroupViewSet)
 router.register(r'consumers', ConsumerView)
 router.register(r'producers', ProducerView)
 router.register(r'sensors', SensorView)
+router.register(r'readings', ReadingView)
+#router.register(r'contracts', ContractView)
+#router.register(r'rates', RateView)
 
 urlpatterns = [
-    #path('admin/', admin.site.urls),
+    path('admin/', admin.site.urls),
     #path('populate/', populate_view, name="populate"),
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('', include(router.urls)),

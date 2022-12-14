@@ -27,7 +27,9 @@ class Producer(models.Model):
     city = models.CharField(max_length=20)
     peak_power = models.IntegerField()
     production_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT)
-    grid_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT, related_name="grid_sensor")
+    # set related name to distinguish between sensor.producer and sensor.producer_grid
+    # (access to producer if sensor is set as production sensor and if sensor is set as grid_sensor)
+    grid_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT, related_name="producer_grid")
 
 
 class Consumer(models.Model):

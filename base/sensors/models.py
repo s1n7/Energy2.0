@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 
 
 # Create your models here.
-from base.contracts.models import Contract
+from base.contracts.models import Contract, Rate
 
 
 class Sensor(models.Model):
@@ -12,7 +12,7 @@ class Sensor(models.Model):
         PRODUCTION_METER = 'PM', 'Production Meter'
         CONSUMPTION_METER = 'CM', 'Consumption Meter'
         GRID_METER = 'GM', 'Grid Meter'
-    # ID an der wir am Ende Sensor einer WE zuordnen können, wahrscheinlich ZählerNr oder so
+    # ID an der wir am Ende Sensor einer WE zuordnen können, wahrscheinlich ZählerNr/EUI oder so
     device_id = models.IntegerField()
     type = models.CharField(
         max_length=2,
@@ -39,4 +39,6 @@ class Consumer(models.Model):
     phone = models.CharField(max_length=15)
     producer = models.ForeignKey(Producer, on_delete=models.CASCADE)
     sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT)
-    contract = models.ForeignKey(Contract, on_delete=models.RESTRICT)
+    #TODO: Many-to-Many Relationship mit Rate über das Model: Contracts
+    #contract = models.ForeignKey(Contract, on_delete=models.RESTRICT)
+    rates = models.ManyToManyField(Rate, through=Contract)

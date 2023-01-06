@@ -1,5 +1,4 @@
 import datetime
-
 from django.db import models
 
 
@@ -19,7 +18,8 @@ class Rate(models.Model):
 
 
 class Contract(models.Model):
-    name = models.CharField(max_length=30)
-    start_date = models.DateField(null=True)
-    end_date = models.DateField(null=True)
-    rates = models.ManyToManyField(Rate)
+    #name = models.CharField(max_length=30)
+    #start_date = models.DateField(null=True)
+    #end_date = models.DateField(null=True)
+    rate = models.ForeignKey(Rate, on_delete=models.RESTRICT)
+    consumer = models.ForeignKey('sensors.Consumer', on_delete=models.CASCADE)

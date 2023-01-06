@@ -18,7 +18,7 @@ from django.urls import path, include
 from rest_framework import routers
 
 from base.contracts.views import ContractView, RateView
-from base.data.views import ReadingView
+from base.data.views import *
 from base.views import *
 from base.sensors.views import *
 from rest_framework.authtoken.views import obtain_auth_token
@@ -30,6 +30,8 @@ router.register(r'consumers', ConsumerView)
 router.register(r'producers', ProducerView)
 router.register(r'sensors', SensorView)
 router.register(r'readings', ReadingView)
+router.register(r'production', ProductionView)
+router.register(r'consumption', ConsumptionView)
 router.register(r'contracts', ContractView)
 router.register(r'rates', RateView)
 

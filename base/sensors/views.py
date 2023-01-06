@@ -20,10 +20,10 @@ class ConsumerView(viewsets.ModelViewSet):
 class ProducerView(viewsets.ModelViewSet):
     queryset = Producer.objects.all()
     serializer_class = ProducerSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.IsAdminUser]
 
 
 class SensorView(viewsets.ModelViewSet):
     queryset = Sensor.objects.all()
     serializer_class = SensorSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+    permission_classes = [permissions.isAdminUser]

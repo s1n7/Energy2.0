@@ -5,16 +5,32 @@ from django.db import models
 
 # Create your models here.
 from base.sensors.models import Sensor, Consumer, Producer
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class Reading(models.Model):
-    power = models.DecimalField(max_digits=9, decimal_places=3)
-    frequency = models.DecimalField(max_digits=5, decimal_places=3)
-    voltage = models.DecimalField(max_digits=6, decimal_places=3)
+    energy = models.DecimalField(max_digits=10, decimal_places=4)
+    power = models.DecimalField(max_digits=9, decimal_places=4)
     # TODO: jetzt mit default ist time theorethisch überschreibar, falls in den Daten ein Zeitstempel dabei ist.
     #  ansonsten default löschen und auto_now_add=True damit time nicht mehr überschreibbar ist
     time = models.DateTimeField(default=datetime.datetime.now)
     sensor = models.ForeignKey(Sensor, on_delete=models.RESTRICT)
+
+
+@receiver(post_save, sender=Reading)
+def update_last_reading(instance, sender, *args, **kwargs):
+    sensor = instance.sensor
+    if sensor.type == "CM":
+        entity = sensor.consumer
+        entity.last_reading = instance.time
+    elif sensor.type == "PM":
+        entity = sensor.producer
+        entity.last_production_reading = instance.time
+    elif sensor.type == "GM":
+        entity = sensor.producer_grid
+        entity.last_grid_reading = instance.time
+    entity.save()
 
 
 class Production(models.Model):

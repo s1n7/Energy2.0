@@ -26,10 +26,12 @@ class Producer(models.Model):
     zip_code = models.CharField(max_length=5)
     city = models.CharField(max_length=20)
     peak_power = models.IntegerField()
-    production_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT)
+    production_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT, related_name="producer")
     # set related name to distinguish between sensor.producer and sensor.producer_grid
     # (access to producer if sensor is set as production sensor and if sensor is set as grid_sensor)
     grid_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT, related_name="producer_grid")
+    last_production_reading = models.DateTimeField(null=True)
+    last_grid_reading = models.DateTimeField(null=True)
 
 
 class Consumer(models.Model):
@@ -42,3 +44,4 @@ class Consumer(models.Model):
     #TODO: Many-to-Many Relationship mit Rate über das Model: Contracts
     #contract = models.ForeignKey(Contract, on_delete=models.RESTRICT)
     rates = models.ManyToManyField(Rate, through=Contract)
+    last_reading = models.DateTimeField(null=True)

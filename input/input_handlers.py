@@ -188,6 +188,7 @@ class InputHandler:
         consumption['price'] = consumption['reduced_price'] + consumption['grid_price']
         # saved money
         consumption['saved'] = (consumption['consumption'] * rate.price) - consumption['price']
+        # TODO: add reduced_price, grid_price and saved to Consumption Model
         return consumption
 
     def _check_for_new_production(self):
@@ -208,4 +209,15 @@ class InputHandler:
         subject = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
         target_time = new_production_reading.time
         interpolated_grid_meter_reading = self._interpolate(base, subject, target_time)
-        print(interpolated_grid_meter_reading)
+        new_production_data = {
+            'producer': self.producer,
+            'time': new_production_reading.time,
+            'produced': Decimal(new_production_reading.energy) - last_production.production_meter_reading,
+            'production_meter_reading': Decimal(new_production_reading.energy),
+            'grid_meter_production': interpolated_grid_meter_reading
+        }
+        grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
+        # produced energy minus what was feed in to the grid
+        new_production_data['used'] = new_production_data['produced'] - grid_feed_in
+
+        new_production = Production.objects.create(**new_production_data)

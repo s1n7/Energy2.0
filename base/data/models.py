@@ -49,8 +49,12 @@ class Consumption(models.Model):
     time = models.DateTimeField()
     self_consumption = models.DecimalField(max_digits=DECIMAL_PLACES + 3, decimal_places=DECIMAL_PLACES)
     grid_consumption = models.DecimalField(max_digits=DECIMAL_PLACES + 3, decimal_places=DECIMAL_PLACES)
+    consumption = models.DecimalField(max_digits=DECIMAL_PLACES + 3, decimal_places=DECIMAL_PLACES)
     meter_reading = models.DecimalField(max_digits=DECIMAL_PLACES + 5, decimal_places=DECIMAL_PLACES)
     price = models.DecimalField(max_digits=DECIMAL_PLACES + 4, decimal_places=DECIMAL_PLACES)
+    reduced_price = models.DecimalField(max_digits=DECIMAL_PLACES + 4, decimal_places=DECIMAL_PLACES)
+    grid_price = models.DecimalField(max_digits=DECIMAL_PLACES + 4, decimal_places=DECIMAL_PLACES)
+    saved = models.DecimalField(max_digits=DECIMAL_PLACES + 3, decimal_places=DECIMAL_PLACES)
 
     rate = models.ForeignKey(Rate, on_delete=models.RESTRICT)
     production = models.ForeignKey(Production, on_delete=models.RESTRICT)

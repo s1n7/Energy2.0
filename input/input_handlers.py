@@ -37,6 +37,8 @@ class InputHandler:
         # after reading was created we now can check if new productions and/or consumptions are possible to create
         if self._check_for_new_consumption():
             self._create_consumptions()
+        if self._check_for_new_production():
+            self._create_new_production()
         et = datetime.datetime.now()
         print(et - st)
 
@@ -214,10 +216,11 @@ class InputHandler:
             'time': new_production_reading.time,
             'produced': Decimal(new_production_reading.energy) - last_production.production_meter_reading,
             'production_meter_reading': Decimal(new_production_reading.energy),
-            'grid_meter_production': interpolated_grid_meter_reading
+            'grid_meter_reading': interpolated_grid_meter_reading
         }
         grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
         # produced energy minus what was feed in to the grid
         new_production_data['used'] = new_production_data['produced'] - grid_feed_in
 
         new_production = Production.objects.create(**new_production_data)
+        pprint(new_production_data)

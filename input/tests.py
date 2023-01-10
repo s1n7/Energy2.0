@@ -19,7 +19,7 @@ class ConsumptionTest(TestCase):
         print(Sensor.objects.all())
         prod = Producer.objects.create(**producer_dump, production_sensor=pm, grid_sensor=gm)
         prdctn = Production.objects.create(time=time_now, produced=0, used=0, production_meter_reading=0,
-                            grid_meter_reading=0, producer=prod)
+                                           grid_meter_reading=0, producer=prod)
 
         rate = Rate.objects.create(price=40, reduced_price=35)
 
@@ -50,5 +50,10 @@ class ConsumptionTest(TestCase):
         # TODO: Test for new consumption check returning False
         new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
                                                time=time_now + timedelta(minutes=25))
+        new_production_reading = Reading.objects.create(energy=0.3, power=0, time=time_now + timedelta(minutes=30),
+                                                        sensor=Producer.objects.first().production_sensor)
+        # TODO: test for new producer check returning False
+        new_grid_reading = Reading.objects.create(energy=0.1, power=0, time=time_now + timedelta(minutes=35),
+                                                        sensor=Producer.objects.first().grid_sensor)
         ih = InputHandler(request=None, producer=Producer.objects.first())
         ih.handle_input()

@@ -34,6 +34,7 @@ class InputHandler:
             elif sensor.type == "GM":  # Grid Meter
                 self.producer = sensor.producer_grid
             self._save_input_as_reading()
+        # after reading was created we now can check if new productions and/or consumptions are possible to create
         if self._check_for_new_consumption():
             self._create_consumptions()
         et = datetime.datetime.now()
@@ -73,8 +74,8 @@ class InputHandler:
         consumers = self.producer.consumer_set.all()
         for consumer in consumers:
             # TODO: add last_reading field to consumer model to make check faster
-            if not consumer.last_reading >= production.time: # this is the fullfilles TODO hopefully
-            # if not Reading.objects.filter(sensor=consumer.sensor, time__gte=production.time).exists():
+            if not consumer.last_reading >= production.time:  # this is the fullfilles TODO hopefully
+                # if not Reading.objects.filter(sensor=consumer.sensor, time__gte=production.time).exists():
                 return False
         self.production = production
         self.consumers = consumers
@@ -100,6 +101,7 @@ class InputHandler:
                                          'consumption': Decimal(meter_reading) - last_consumption.meter_reading,
                                          'last_consumption': last_consumption}
         consumptions = self._divide_production_among_consumption(consumptions)
+        # TODO: create Consumptions objects out of consumption
 
     def _interpolate(self, base, subject, target_time):
         """
@@ -174,7 +176,7 @@ class InputHandler:
             if not rate:
                 rate = rates.first()
         else:
-            #else just use the first
+            # else just use the first
             rate = rates.first()
         consumption['rate'] = rate
         # TODO: What if rate is not for the entire consumption span
@@ -189,12 +191,21 @@ class InputHandler:
         return consumption
 
     def _check_for_new_production(self):
-        # TODO: change to last_reading on Producer
-        grid_sensor = self.producer.grid_sensor
+        # is their a newer producer reading than production
+        if not self.producer.last_production_reading > self.producer.production_set.last().time:
+            return False
+        if not self.producer.last_grid_reading >= self.producer.last_production_reading:
+            return False
+        return True
+
+    def _create_new_production(self):
         last_production = self.producer.production_set.last()
-        producer_reading = self.producer.production_sensor.reading_set.filter(time__gt=last_production.time).first()
-        if not producer_reading:
-            return False
-        grid_reading = grid_sensor.reading_set.filter(sensor=grid_sensor, time__gte=producer_reading.time).first()
-        if not grid_reading:
-            return False
+        new_production_reading = Reading.objects.filter(sensor__type="PM", time__gt=last_production.time,
+                                                        sensor__producer=self.producer).first()
+        new_grid_reading = Reading.objects.filter(sensor__type="GM", sensor__producer_grid=self.producer,
+                                                  time__gt=last_production.time).first()
+        base = {'value': last_production.grid_meter_reading, 'time': last_production.time}
+        subject = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
+        target_time = new_production_reading.time
+        interpolated_grid_meter_reading = self._interpolate(base, subject, target_time)
+        print(interpolated_grid_meter_reading)

@@ -41,7 +41,6 @@ class Consumer(models.Model):
     phone = models.CharField(max_length=15)
     producer = models.ForeignKey(Producer, on_delete=models.RESTRICT)
     sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT)
-    #TODO: Many-to-Many Relationship mit Rate über das Model: Contracts
     #contract = models.ForeignKey(Contract, on_delete=models.RESTRICT)
     rates = models.ManyToManyField(Rate, through=Contract)
     last_reading = models.DateTimeField(null=True)

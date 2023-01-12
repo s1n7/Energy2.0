@@ -2,7 +2,7 @@ import datetime
 from decimal import Decimal
 from pprint import pprint
 
-from base.data.models import Reading, Production
+from base.data.models import Reading, Production, Consumption
 from base.sensors.models import Sensor
 from django.db.models import Q
 
@@ -75,8 +75,7 @@ class InputHandler:
         production = Production.objects.filter(producer=self.producer, consumption__isnull=True).first()
         consumers = self.producer.consumer_set.all()
         for consumer in consumers:
-            # TODO: add last_reading field to consumer model to make check faster
-            if not consumer.last_reading >= production.time:  # this is the fullfilles TODO hopefully
+            if not consumer.last_reading or not consumer.last_reading >= production.time:
                 # if not Reading.objects.filter(sensor=consumer.sensor, time__gte=production.time).exists():
                 return False
         self.production = production
@@ -85,44 +84,55 @@ class InputHandler:
 
     def _create_consumptions(self):
         """
-        !!! Should only be called after _check_for_new_consumption
+        !!! Should only be called after _check_for_new_consumption !!!
         New Consumptions are created for Consumers of set producer
         """
         consumptions = {}
         for consumer in self.consumers:
-            # closest reading that is younger than set production
+            # next reading after the set production
             reading = Reading.objects.filter(sensor=consumer.sensor, time__gte=self.production.time).first()
             # last consumption of consumer
             last_consumption = consumer.consumption_set.last()
             target_time = self.production.time
-            subject = {"time": reading.time, "value": reading.energy}
-            base = {"time": last_consumption.time, "value": last_consumption.meter_reading}
-            # interpolate meter_reading at target_time
-            meter_reading = self._interpolate(base, subject, target_time)
+            # right is the new reading
+            right = {"time": reading.time, "value": reading.energy}
+            left = {"time": last_consumption.time, "value": last_consumption.meter_reading}
+            # interpolate meter_reading at target_time between left and right
+            meter_reading = self._interpolate(left, right, target_time)
             consumptions[consumer.id] = {'meter_reading': meter_reading,
+                                         # consumption is the difference of the meter readings
                                          'consumption': Decimal(meter_reading) - last_consumption.meter_reading,
-                                         'last_consumption': last_consumption}
+                                         'last_consumption': last_consumption,
+                                         'time': target_time,
+                                         'consumer': consumer,
+                                         'production': self.production}
         consumptions = self._divide_production_among_consumption(consumptions)
-        # TODO: create Consumptions objects out of consumption
+        for consumption in consumptions.values():
+            del consumption['last_consumption']
+            Consumption.objects.create(**consumption)
 
-    def _interpolate(self, base, subject, target_time):
+    def _interpolate(self, left, right, target_time):
         """
         interpolates a value at target_time linearly that is between base.value and base.time
-        :param base: {value: number, time: datetime}
-        :param subject: {value: number, time: datetime}
+        :param left: {value: number, time: datetime}
+        :param right: {value: number, time: datetime}
         :param target_time: datetime
         :return: Decimal
         """
-        difference = subject['value'] - base['value']
-        length = subject['time'] - base['time']
-        length_to_target = target_time - base['time']
-        result = Decimal(base['value']) + (Decimal(difference) / Decimal(length.total_seconds())) * Decimal(
+        difference = right['value'] - left['value']
+        length = right['time'] - left['time']
+        length_to_target = target_time - left['time']
+        result = Decimal(left['value']) + (Decimal(difference) / Decimal(length.total_seconds())) * Decimal(
             length_to_target.total_seconds())
+        print(f'got {float(left["value"])} at {left["time"]} \n'
+              f'got {float(right["value"])} at {right["time"]} \n'
+              f'calculated {result} at {target_time}')
         return result
 
     def _divide_production_among_consumption(self, consumptions):
         """
-        !!!Must only run after in _create_consumptions!!!
+        !!!Must only run after in _create_consumptions!!! Divides the production of a producer to equally to the
+        consumptions of all consumers that are related to the producer
         :param consumptions: {consumer__id: {meter_reading, consumption}}
         :return {consumer__id: {meter_reading, consumption, self_consumption, grid_consumption}}
         """
@@ -135,19 +145,23 @@ class InputHandler:
             for consumption_key in consumptions:
                 remaining_consumers = len(consumptions) - index
                 consumption = consumptions[consumption_key]
+                # each consumer gets an equal share
                 share = available_production / remaining_consumers
                 if consumption['consumption'] >= share:
                     consumption['self_consumption'] = share
                     consumption['grid_consumption'] = consumption['consumption'] - share
-                else:
+                else:  # if one consumer consumed less than the share -> every other consumer gets a bigger share
                     share = consumption['consumption']
-                    consumption['self_consumption'] = share
+                    consumption['self_consumption'] = consumption['consumption']
                     consumption['grid_consumption'] = 0
-                self._assign_rate_and_price_to_consumption(consumption)
+                    share -= consumption['consumption']
                 available_production -= share
+                self._assign_rate_and_price_to_consumption(consumption)
                 index += 1
+            if available_production > 0:
+                print("Achtung: Produktion konnte nicht aufgeteilt werden")
         else:
-            # if no production avalibale than grid_consumption is all and self_consumption is 0
+            # if no production available than grid_consumption is all and self_consumption is 0
             for consumption_key in consumptions:
                 consumptions[consumption_key]['grid_consumption'] = consumptions[consumption_key]['consumption']
                 consumptions[consumption_key]['self_consumption'] = 0
@@ -190,14 +204,19 @@ class InputHandler:
         consumption['price'] = consumption['reduced_price'] + consumption['grid_price']
         # saved money
         consumption['saved'] = (consumption['consumption'] * rate.price) - consumption['price']
-        # TODO: add reduced_price, grid_price and saved to Consumption Model
         return consumption
 
     def _check_for_new_production(self):
-        # is their a newer producer reading than production
-        if not self.producer.last_production_reading > self.producer.production_set.last().time:
+        """
+        Only returns true if there are production reading and grid reading that are younger than the last production
+        time
+        :return: Boolean
+        """
+        if not self.producer.last_production_reading \
+                or not self.producer.last_production_reading > self.producer.production_set.last().time:
             return False
-        if not self.producer.last_grid_reading >= self.producer.last_production_reading:
+        if not self.producer.last_grid_reading \
+                or not self.producer.last_grid_reading >= self.producer.last_production_reading:
             return False
         return True
 
@@ -206,11 +225,11 @@ class InputHandler:
         new_production_reading = Reading.objects.filter(sensor__type="PM", time__gt=last_production.time,
                                                         sensor__producer=self.producer).first()
         new_grid_reading = Reading.objects.filter(sensor__type="GM", sensor__producer_grid=self.producer,
-                                                  time__gt=last_production.time).first()
-        base = {'value': last_production.grid_meter_reading, 'time': last_production.time}
-        subject = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
+                                                  time__gte=new_production_reading.time).first()
+        left = {'value': last_production.grid_meter_reading, 'time': last_production.time}
+        right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
         target_time = new_production_reading.time
-        interpolated_grid_meter_reading = self._interpolate(base, subject, target_time)
+        interpolated_grid_meter_reading = self._interpolate(left, right, target_time)
         new_production_data = {
             'producer': self.producer,
             'time': new_production_reading.time,
@@ -218,9 +237,10 @@ class InputHandler:
             'production_meter_reading': Decimal(new_production_reading.energy),
             'grid_meter_reading': interpolated_grid_meter_reading
         }
+        # TODO: if used is under 0 it has to be set to 0 and change grid_meter_reading
         grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
-        # produced energy minus what was feed in to the grid
+        new_production_data['grid_feed_in'] = grid_feed_in
+        # only the produced energy was really used that was not fed into the grid
         new_production_data['used'] = new_production_data['produced'] - grid_feed_in
-
         new_production = Production.objects.create(**new_production_data)
         pprint(new_production_data)

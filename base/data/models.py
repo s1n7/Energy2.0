@@ -40,7 +40,7 @@ class Production(models.Model):
     used = models.DecimalField(max_digits=DECIMAL_PLACES + 3, decimal_places=DECIMAL_PLACES)
     production_meter_reading = models.DecimalField(max_digits=DECIMAL_PLACES + 5, decimal_places=DECIMAL_PLACES)
     grid_meter_reading = models.DecimalField(max_digits=DECIMAL_PLACES + 5, decimal_places=DECIMAL_PLACES)
-
+    grid_feed_in = models.DecimalField(max_digits=DECIMAL_PLACES + 3, decimal_places=DECIMAL_PLACES)
     producer = models.ForeignKey(Producer, on_delete=models.RESTRICT)
 
 

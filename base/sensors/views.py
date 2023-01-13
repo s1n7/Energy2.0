@@ -26,4 +26,4 @@ class ProducerView(viewsets.ModelViewSet):
 class SensorView(viewsets.ModelViewSet):
     queryset = Sensor.objects.all()
     serializer_class = SensorSerializer
-    permission_classes = [permissions.isAdminUser]
+    permission_classes = [permissions.IsAdminUser]

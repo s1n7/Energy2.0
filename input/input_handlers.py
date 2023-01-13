@@ -49,7 +49,6 @@ class InputHandler:
         """
         sensor = self.sensor
         data = self.data
-        print("Achtung",data)
         # Depending on the sensor type the data has to be fetched differently
         if sensor.type == "CM":
             energy = data['Bezug_Gesamt_kWh']
@@ -241,8 +240,11 @@ class InputHandler:
             'production_meter_reading': Decimal(new_production_reading.energy),
         }
         grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
+        if grid_feed_in < 0:
+            grid_feed_in = 0
+            interpolated_grid_meter_reading = last_production.grid_meter_reading
         new_production_data['grid_feed_in'] = grid_feed_in
-        if new_production_data['produced'] >= grid_feed_in:
+        if new_production_data['produced'] > grid_feed_in:
             # only the produced energy was really used that was not fed into the grid
             new_production_data['used'] = new_production_data['produced'] - grid_feed_in
             new_production_data['grid_meter_reading'] = interpolated_grid_meter_reading
@@ -253,5 +255,6 @@ class InputHandler:
             #  considered in one of the next productions
             new_production_data['used'] = 0
             new_production_data['grid_meter_reading'] = left['value'] + new_production_data['produced']
+            new_production_data['grid_feed_in'] = new_production_data['produced']
         new_production = Production.objects.create(**new_production_data)
         pprint(new_production_data)

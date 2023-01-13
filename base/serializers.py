@@ -17,13 +17,15 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
 
     def create(self, validated_data):
         # Groups können nicht direkt zugeordnet werden weil Many2Many Relationship
-        user_groups = validated_data.pop('groups')
+        if 'groups' in validated_data:
+            user_groups = validated_data.pop('groups')
         user = User(**validated_data)
         user.set_password(validated_data['password'])
         user.save()
         # Many2Many Relationships brauchen ids deswegen vorher einmal abspeichern
-        user.groups.set(user_groups)
-        user.save()
+        if 'groups' in validated_data:
+            user.groups.set(user_groups)
+            user.save()
 
         return user
 

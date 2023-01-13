@@ -9,7 +9,7 @@ from django.db.models import Q
 
 class InputHandler:
 
-    def __init__(self, request, producer):
+    def __init__(self, request=None, producer=None):
         self.producer = producer
         self.request = request
         self.sensor = None
@@ -20,11 +20,12 @@ class InputHandler:
         st = datetime.datetime.now()
         if self.request is not None:
             request = self.request
-            device_id = self.request.data.device_id
-            self.data = request.data.parsed
+            device_id = self.request.data['device_id']
+            self.data = request.data['parsed']
+            self.data['source_time'] = request.data['source_time']
             # from request get device_id and get the according sensor instance
             # TODO: What if no sensor with id exists
-            self.sensor = Sensor.objects.find(device_id=device_id)
+            self.sensor = Sensor.objects.get(device_id=device_id)
             sensor = self.sensor
             # Depending on the sensor type the according producer has to be fetched differently
             if sensor.type == "CM":  # Consumption Meter
@@ -35,8 +36,8 @@ class InputHandler:
                 self.producer = sensor.producer_grid
             self._save_input_as_reading()
         # after reading was created we now can check if new productions and/or consumptions are possible to create
-        if self._check_for_new_consumption():
-            self._create_consumptions()
+        # if self._check_for_new_consumption():
+        #     self._create_consumptions()
         if self._check_for_new_production():
             self._create_new_production()
         et = datetime.datetime.now()
@@ -48,6 +49,7 @@ class InputHandler:
         """
         sensor = self.sensor
         data = self.data
+        print("Achtung",data)
         # Depending on the sensor type the data has to be fetched differently
         if sensor.type == "CM":
             energy = data['Bezug_Gesamt_kWh']
@@ -59,7 +61,7 @@ class InputHandler:
         reading_data = {
             'power': data['Leistung_Summe_W'],
             'energy': energy,
-            'time': data['source_time'],
+            'time': datetime.datetime.strptime(data['source_time'], '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds'),
             'sensor': sensor
         }
         reading = Reading(**reading_data)
@@ -212,6 +214,8 @@ class InputHandler:
         time
         :return: Boolean
         """
+        self.producer.refresh_from_db()
+        print(type(self.producer.last_grid_reading), type(self.producer.last_production_reading))
         if not self.producer.last_production_reading \
                 or not self.producer.last_production_reading > self.producer.production_set.last().time:
             return False
@@ -235,12 +239,19 @@ class InputHandler:
             'time': new_production_reading.time,
             'produced': Decimal(new_production_reading.energy) - last_production.production_meter_reading,
             'production_meter_reading': Decimal(new_production_reading.energy),
-            'grid_meter_reading': interpolated_grid_meter_reading
         }
-        # TODO: if used is under 0 it has to be set to 0 and change grid_meter_reading
         grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
         new_production_data['grid_feed_in'] = grid_feed_in
-        # only the produced energy was really used that was not fed into the grid
-        new_production_data['used'] = new_production_data['produced'] - grid_feed_in
+        if new_production_data['produced'] >= grid_feed_in:
+            # only the produced energy was really used that was not fed into the grid
+            new_production_data['used'] = new_production_data['produced'] - grid_feed_in
+            new_production_data['grid_meter_reading'] = interpolated_grid_meter_reading
+        else:
+            # because of the interpolation it is possible that a new production has fed more power in to the grid
+            # than produced, which should be impossible. Therefore, in that case the grid_meter_reading is adjusted
+            # so to the exact amount of actual production, so that "used" = 0. The rest of the grid_feed in will be
+            #  considered in one of the next productions
+            new_production_data['used'] = 0
+            new_production_data['grid_meter_reading'] = left['value'] + new_production_data['produced']
         new_production = Production.objects.create(**new_production_data)
         pprint(new_production_data)

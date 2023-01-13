@@ -16,10 +16,8 @@ from rest_framework.response import Response
 
 @api_view(['POST', ])
 @permission_classes([permissions.AllowAny])
-def handle_input(request):
-    input_handler = InputHandler()
-    input_handler.handle_input(request)
+def input_view(request):
+    input_handler = InputHandler(request)
+    input_handler.handle_input()
 
-
-
-
+    return Response(status=200)

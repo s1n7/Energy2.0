@@ -15,6 +15,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from input.views import input_view
 from rest_framework import routers
 
 from base.contracts.views import ContractView, RateView
@@ -40,6 +41,7 @@ urlpatterns = [
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('', include(router.urls)),
     path('login/', obtain_auth_token, name='api_token_auth'),
-    path('logout/', LogoutView.as_view())
+    path('logout/', LogoutView.as_view()),
+    path('input/', input_view)
 ]
 

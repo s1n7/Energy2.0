@@ -2,12 +2,23 @@ import datetime
 from decimal import Decimal
 from pprint import pprint
 
+from base.contracts.models import Rate
 from base.data.models import Reading, Production, Consumption
 from base.sensors.models import Sensor
 from django.db.models import Q
 
 
 class InputHandler:
+    """
+        Handles Sensor Input of Producer, Grid or Consumer.
+        Sequence:
+
+        1. Create Reading from Input
+        2. Check if thanks to new Reading a new Production can be created
+            - if so check again until no new Production can be created
+        3. Check if thanks to new Reading new Consumptions can be created
+            - if so check again until no new Consumptions can be created
+    """
 
     def __init__(self, request=None, producer=None):
         self.producer = producer
@@ -15,14 +26,21 @@ class InputHandler:
         self.sensor = None
         self.data = None
 
+    print_mode = True
+
     def handle_input(self):
         # if request is none, no reading should be created but check for new possible productions or consumptions
-        st = datetime.datetime.now()
         if self.request is not None:
             request = self.request
-            device_id = self.request.data['device_id']
-            self.data = request.data['parsed']
-            self.data['source_time'] = request.data['source_time']
+            try:
+                device_id = self.request.data['device_id']
+                self.data = request.data['parsed']
+                self.data['source_time'] = request.data['source_time']
+            except AttributeError as e:
+                device_id = self.request['data']['device_id']
+                self.data = request['data']['parsed']
+                self.data['source_time'] = request['data']['source_time']
+
             # from request get device_id and get the according sensor instance
             # TODO: What if no sensor with id exists
             self.sensor = Sensor.objects.get(device_id=device_id)
@@ -35,13 +53,15 @@ class InputHandler:
             elif sensor.type == "GM":  # Grid Meter
                 self.producer = sensor.producer_grid
             self._save_input_as_reading()
-        # after reading was created we now can check if new productions and/or consumptions are possible to create
-        # if self._check_for_new_consumption():
-        #     self._create_consumptions()
-        if self._check_for_new_production():
+        self.producer.refresh_from_db()
+        while self._check_for_new_production():
             self._create_new_production()
-        et = datetime.datetime.now()
-        print(et - st)
+            self.producer.refresh_from_db()
+        # after reading was created we now can check if new productions and/or consumptions are possible to create
+        self.producer.refresh_from_db()
+        while self._check_for_new_consumption():
+            self._create_consumptions()
+            self.producer.refresh_from_db()
 
     def _save_input_as_reading(self):
         """
@@ -73,7 +93,13 @@ class InputHandler:
         that is has no consumptions assigned yet
         """
         # oldest production of producer that has no consumptions assigned yet
-        production = Production.objects.filter(producer=self.producer, consumption__isnull=True).first()
+        try:
+            production = Production.objects.filter(producer=self.producer, consumption__isnull=True).first()
+        except Production.DoesNotExist:
+            production = None
+        if production is None:
+            return False
+
         consumers = self.producer.consumer_set.all()
         for consumer in consumers:
             if not consumer.last_reading or not consumer.last_reading >= production.time:
@@ -81,6 +107,7 @@ class InputHandler:
                 return False
         self.production = production
         self.consumers = consumers
+
         return True
 
     def _create_consumptions(self):
@@ -100,9 +127,14 @@ class InputHandler:
             left = {"time": last_consumption.time, "value": last_consumption.meter_reading}
             # interpolate meter_reading at target_time between left and right
             meter_reading = self._interpolate(left, right, target_time)
+
+            consumption = meter_reading - last_consumption.meter_reading
+            if consumption < 0:
+                consumption = 0
+                meter_reading = last_consumption.meter_reading
             consumptions[consumer.id] = {'meter_reading': meter_reading,
                                          # consumption is the difference of the meter readings
-                                         'consumption': Decimal(meter_reading) - last_consumption.meter_reading,
+                                         'consumption': consumption,
                                          'last_consumption': last_consumption,
                                          'time': target_time,
                                          'consumer': consumer,
@@ -111,8 +143,11 @@ class InputHandler:
         for consumption in consumptions.values():
             del consumption['last_consumption']
             Consumption.objects.create(**consumption)
+        if self.print_mode:
+            pprint(consumptions)
 
-    def _interpolate(self, left, right, target_time):
+    @staticmethod
+    def _interpolate(left, right, target_time):
         """
         interpolates a value at target_time linearly that is between base.value and base.time
         :param left: {value: number, time: datetime}
@@ -125,9 +160,9 @@ class InputHandler:
         length_to_target = target_time - left['time']
         result = Decimal(left['value']) + (Decimal(difference) / Decimal(length.total_seconds())) * Decimal(
             length_to_target.total_seconds())
-        print(f'got {float(left["value"])} at {left["time"]} \n'
-              f'got {float(right["value"])} at {right["time"]} \n'
-              f'calculated {result} at {target_time}')
+        # print(f'got {float(left["value"])} at {left["time"]} \n'
+        #       f'got {float(right["value"])} at {right["time"]} \n'
+        #       f'calculated {result} at {target_time}')
         return result
 
     def _divide_production_among_consumption(self, consumptions):
@@ -167,7 +202,6 @@ class InputHandler:
                 consumptions[consumption_key]['grid_consumption'] = consumptions[consumption_key]['consumption']
                 consumptions[consumption_key]['self_consumption'] = 0
                 self._assign_rate_and_price_to_consumption(consumptions[consumption_key])
-        pprint(consumptions)
         return consumptions
 
     def _assign_rate_and_price_to_consumption(self, consumption):
@@ -189,12 +223,13 @@ class InputHandler:
         )
         # if multiple rates were found use the flexible
         if len(rates) > 1:
-            rate = rates.get(flexible=True)
-            if not rate:
-                rate = rates.first()
+            try:
+                rate = rates.get(flexible=True)
+            except Rate.DoesNotExist:
+                rate = consumer.rates.first()
         else:
             # else just use the first
-            rate = rates.first()
+            rate = consumer.rates.first()
         consumption['rate'] = rate
         # TODO: What if rate is not for the entire consumption span
         # price for used solar power
@@ -213,8 +248,6 @@ class InputHandler:
         time
         :return: Boolean
         """
-        self.producer.refresh_from_db()
-        print(type(self.producer.last_grid_reading), type(self.producer.last_production_reading))
         if not self.producer.last_production_reading \
                 or not self.producer.last_production_reading > self.producer.production_set.last().time:
             return False
@@ -233,11 +266,16 @@ class InputHandler:
         right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
         target_time = new_production_reading.time
         interpolated_grid_meter_reading = self._interpolate(left, right, target_time)
+        produced = new_production_reading.energy - last_production.production_meter_reading
+        new_production_meter_reading = new_production_reading.energy
+        if produced < 0:
+            produced = 0
+            new_production_meter_reading = last_production.production_meter_reading
         new_production_data = {
             'producer': self.producer,
             'time': new_production_reading.time,
-            'produced': Decimal(new_production_reading.energy) - last_production.production_meter_reading,
-            'production_meter_reading': Decimal(new_production_reading.energy),
+            'produced': produced,
+            'production_meter_reading': new_production_meter_reading,
         }
         grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
         if grid_feed_in < 0:
@@ -256,5 +294,7 @@ class InputHandler:
             new_production_data['used'] = 0
             new_production_data['grid_meter_reading'] = left['value'] + new_production_data['produced']
             new_production_data['grid_feed_in'] = new_production_data['produced']
+
         new_production = Production.objects.create(**new_production_data)
-        pprint(new_production_data)
+        if self.print_mode:
+            pprint(new_production_data)

@@ -146,8 +146,7 @@ class InputHandler:
         if self.print_mode:
             pprint(consumptions)
 
-    @staticmethod
-    def _interpolate(left, right, target_time):
+    def _interpolate(self, left, right, target_time):
         """
         interpolates a value at target_time linearly that is between base.value and base.time
         :param left: {value: number, time: datetime}
@@ -160,9 +159,10 @@ class InputHandler:
         length_to_target = target_time - left['time']
         result = Decimal(left['value']) + (Decimal(difference) / Decimal(length.total_seconds())) * Decimal(
             length_to_target.total_seconds())
-        # print(f'got {float(left["value"])} at {left["time"]} \n'
-        #       f'got {float(right["value"])} at {right["time"]} \n'
-        #       f'calculated {result} at {target_time}')
+        if self.print_mode:
+            print(f'got {float(left["value"])} at {left["time"]} \n'
+                  f'got {float(right["value"])} at {right["time"]} \n'
+                  f'calculated {result} at {target_time}')
         return result
 
     def _divide_production_among_consumption(self, consumptions):

@@ -78,6 +78,7 @@ class P2PEnergySimulator:
         :return:
         """
         st = datetime.now()
+        self.setup()
         while self.timestamp < end_date:
             self.next()
         et = datetime.now()

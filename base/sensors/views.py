@@ -16,6 +16,14 @@ class ConsumerView(viewsets.ModelViewSet):
     serializer_class = ConsumerSerializer
     permission_classes = [custom_permissions.UpdateAndReadOnlyOwned | permissions.IsAdminUser]
 
+    def get_queryset(self):
+        queryset = Consumer.objects.all()
+        producer_id = self.request.query_params.get('producer_id')
+        if producer_id is not None:
+            queryset = queryset.filter(producer_id=producer_id)
+        return queryset
+
+
 
 class ProducerView(viewsets.ModelViewSet):
     queryset = Producer.objects.all()

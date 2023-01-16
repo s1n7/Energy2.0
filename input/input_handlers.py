@@ -14,10 +14,10 @@ class InputHandler:
         Sequence:
 
         1. Create Reading from Input
-        2. Check if thanks to new Reading a new Production can be created
-            - if so check again until no new Production can be created
-        3. Check if thanks to new Reading new Consumptions can be created
-            - if so check again until no new Consumptions can be created
+        2. Check if due to new Reading a new Production can be created
+            - if so create and check again until no new Production can be created
+        3. Check if due to new Reading new Consumptions can be created
+            - if so create and check again until no new Consumptions can be created
     """
 
     def __init__(self, request=None, producer=None):

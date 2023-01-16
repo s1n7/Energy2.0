@@ -90,13 +90,14 @@ class P2PEnergySimulator:
         :return:
         """
         producer = Producer.objects.get(id=self.producer['id'])
+        time = datetime.strptime(str(self.timestamp - timedelta(minutes=15)), '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
         if not producer.production_set.first():
-            production = Production.objects.create(time=self.timestamp - timedelta(minutes=15), produced=0, used=0,
+            production = Production.objects.create(time=time, produced=0, used=0,
                                                    production_meter_reading=0, grid_meter_reading=0, producer=producer,
                                                    grid_feed_in=0)
             for consumer in producer.consumer_set.all():
                 consumption = Consumption.objects.create(self_consumption=0, grid_consumption=0, meter_reading=0,
-                                                         consumer=consumer, time=self.timestamp - timedelta(minutes=15),
+                                                         consumer=consumer, time=time,
                                                          production=production, price=0, rate=Rate.objects.first(),
                                                          grid_price=0, reduced_price=0, saved=0, consumption=0)
 

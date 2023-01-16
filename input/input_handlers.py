@@ -89,8 +89,8 @@ class InputHandler:
     def _check_for_new_consumption(self):
         """
         Checks if new consumptions for the consumers of the given producer can be created.
-        This is the case if a Reading exists for every consumer that is the same or younger than the oldest production
-        that is has no consumptions assigned yet
+        This is the case if a Reading exists for every consumer that is the same age or younger than the oldest
+        production that has no consumptions assigned yet
         """
         # oldest production of producer that has no consumptions assigned yet
         try:
@@ -148,7 +148,7 @@ class InputHandler:
 
     def _interpolate(self, left, right, target_time):
         """
-        interpolates a value at target_time linearly that is between base.value and base.time
+        interpolates a value at target_time linearly that is between left.value and right.value
         :param left: {value: number, time: datetime}
         :param right: {value: number, time: datetime}
         :param target_time: datetime
@@ -167,20 +167,20 @@ class InputHandler:
 
     def _divide_production_among_consumption(self, consumptions):
         """
-        !!!Must only run after in _create_consumptions!!! Divides the production of a producer to equally to the
-        consumptions of all consumers that are related to the producer
+        !!!Must only run in _create_consumptions!!!
+        Divides the production of a producer to equally to the consumptions of all consumers that are related to the
+        producer
         :param consumptions: {consumer__id: {meter_reading, consumption}}
         :return {consumer__id: {meter_reading, consumption, self_consumption, grid_consumption}}
         """
         # sort consumptions so that the consumer with the lowest consumption comes first
         consumptions = dict(sorted(consumptions.items(), key=lambda x: x[1]['meter_reading']))
-        # production that is shared accross consumers -> in the beginning its all the production used
+        # production that is shared across consumers -> in the beginning its all the production used
         available_production = self.production.used
         index = 0
         if available_production > 0:
-            for consumption_key in consumptions:
+            for consumption in consumptions.values():
                 remaining_consumers = len(consumptions) - index
-                consumption = consumptions[consumption_key]
                 # each consumer gets an equal share
                 share = available_production / remaining_consumers
                 if consumption['consumption'] >= share:
@@ -198,10 +198,10 @@ class InputHandler:
                 print("Achtung: Produktion konnte nicht aufgeteilt werden")
         else:
             # if no production available than grid_consumption is all and self_consumption is 0
-            for consumption_key in consumptions:
-                consumptions[consumption_key]['grid_consumption'] = consumptions[consumption_key]['consumption']
-                consumptions[consumption_key]['self_consumption'] = 0
-                self._assign_rate_and_price_to_consumption(consumptions[consumption_key])
+            for consumption in consumptions.values():
+                consumption['grid_consumption'] = consumption['consumption']
+                consumption['self_consumption'] = 0
+                self._assign_rate_and_price_to_consumption(consumption                      )
         return consumptions
 
     def _assign_rate_and_price_to_consumption(self, consumption):

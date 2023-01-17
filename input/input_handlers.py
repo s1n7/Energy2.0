@@ -26,7 +26,7 @@ class InputHandler:
         self.sensor = None
         self.data = None
 
-    print_mode = True
+    print_mode = False
 
     def handle_input(self):
         # if request is none, no reading should be created but check for new possible productions or consumptions
@@ -77,10 +77,14 @@ class InputHandler:
         elif sensor.type == "PM":
             energy = data['Lieferung_Gesamt_kWh']
         # store reading data and create Reading object
+        try:
+            time = datetime.datetime.strptime(data['source_time'], '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
+        except ValueError:
+            time = data['source_time']
         reading_data = {
             'power': data['Leistung_Summe_W'],
             'energy': energy,
-            'time': datetime.datetime.strptime(data['source_time'], '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds'),
+            'time': time,
             'sensor': sensor
         }
         reading = Reading(**reading_data)
@@ -201,7 +205,7 @@ class InputHandler:
             for consumption in consumptions.values():
                 consumption['grid_consumption'] = consumption['consumption']
                 consumption['self_consumption'] = 0
-                self._assign_rate_and_price_to_consumption(consumption                      )
+                self._assign_rate_and_price_to_consumption(consumption)
         return consumptions
 
     def _assign_rate_and_price_to_consumption(self, consumption):

@@ -17,17 +17,18 @@ from rest_framework.response import Response
 @permission_classes([permissions.IsAuthenticated])
 def output_view(request):
     """
-    Endpoint to get data for data display, charts etc.
-    :param request:
-    :returns: if user.is_admin:
-                if producer_id is specified:
-                    return all productions of producer & consumptions of its consumers
-                else:
-                    return productions and consumptions of all producers and their consumers
-            if not user.is_admin or (user.is_admin and consumer_id is specified):
-                return all consumptions of consumer
+Endpoint to get data for data display, charts etc.
+
+* if user.is_admin:
+    * if producer_id is specified:
+        * return all productions of producer & consumptions of its consumers
+    - else:
+        - return productions and consumptions of all producers and their consumers
+- if not user.is_admin or (user.is_admin and consumer_id is specified):
+    - return all consumptions of consumer
 
     """
+    st = datetime.now()
     user = request.user
     query_params = request.query_params
     start_date = query_params.get('start_date')
@@ -51,12 +52,30 @@ def output_view(request):
         # for all consumers do the same (maybe only the prices)
         producer = get_object_or_404(Producer, pk=producer_id)
         data = get_productions_and_aggregations(producer, start_date, end_date, request)
+        print(datetime.now() - st)
         return Response(data, status=200)
     elif consumer_id:
         consumer = get_object_or_404(Consumer, pk=consumer_id)
-        if user.id is not consumer.user.id and not user.is_staff:
-            raise PermissionDenied()
         data = get_consumptions_and_aggregations(consumer, start_date, end_date, request)
+        print(datetime.now() - st)
+        return Response(data)
+    # if no consumer_id is set and no production_id
+    # return all data of all producers
+    else:
+        producers = {}
+        producers_total_revenue = 0
+        producers_total_production = 0
+        producers_total_used = 0
+        for producer in Producer.objects.all():
+            producers[producer.name] = get_productions_and_aggregations(producer, start_date, end_date, request)
+            producers_total_revenue += producers[producer.name]['consumers_total_revenue']
+            producers_total_production += producers[producer.name]['total_production']
+            producers_total_used += producers[producer.name]['total_used']
+        data = {'producers_total_production': producers_total_production,
+                'producers_total_used': producers_total_used,
+                'producers_total_revenue': producers_total_revenue,
+                'producers': producers}
+        print(datetime.now() - st)
         return Response(data)
 
 
@@ -76,7 +95,7 @@ def get_productions_and_aggregations(producer, start_date, end_date, request):
     # total_used = difference total_production & total_grid_feed_in
     total_used = total_production - (productions.last().grid_meter_reading - productions.first().grid_meter_reading)
     try:
-        self_usage_percentage = total_used / total_production
+        self_usage_percentage = round(total_used / total_production * 100, 1)
     except decimal.DivisionByZero:
         self_usage_percentage = None
     serialized_productions = ProductionSerializer(productions, many=True, context={'request': request}).data
@@ -86,10 +105,17 @@ def get_productions_and_aggregations(producer, start_date, end_date, request):
         consumptions = get_consumptions_and_aggregations(consumer, start_date, end_date, request)
         consumers[consumer.name] = consumptions
     # TODO: add consumers_total_revenue and consumers_total_consumption
-    return {'productions': serialized_productions,
-            'total_production': total_production,
+    consumers_total_revenue = 0
+    consumers_total_consumption = 0
+    for consumer in consumers.values():
+        consumers_total_revenue += consumer['total_price']
+        consumers_total_consumption += consumer['total_consumption']
+    return {'total_production': total_production,
             'total_used': total_used,
             'self_usage_percentage': self_usage_percentage,
+            'consumers_total_revenue': consumers_total_revenue,
+            'consumers_total_consumption': consumers_total_consumption,
+            'productions': serialized_productions,
             'consumers': consumers}
 
 

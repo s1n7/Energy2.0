@@ -45,7 +45,7 @@ class P2PEnergySimulator:
                          'grid_offset': timedelta(minutes=random.uniform(0, 15))}
         self.requests = []
         self.network_requests = network_requests
-        if network_requests:
+        if not network_requests:
             self.ih = InputHandler()
 
     def next(self):
@@ -90,7 +90,8 @@ class P2PEnergySimulator:
         :return:
         """
         producer = Producer.objects.get(id=self.producer['id'])
-        time = datetime.strptime(str(self.timestamp - timedelta(minutes=15)), '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
+        time = datetime.strptime(str(self.timestamp - timedelta(minutes=15)),
+                                 '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
         if not producer.production_set.first():
             production = Production.objects.create(time=time, produced=0, used=0,
                                                    production_meter_reading=0, grid_meter_reading=0, producer=producer,
@@ -194,15 +195,9 @@ class P2PEnergySimulator:
 
     @staticmethod
     def _delete_data():
-        for r in Reading.objects.all():
-            r.delete()
-
-        for c in Consumption.objects.all():
-            c.delete()
-
-        for p in Production.objects.all():
-            p.delete()
-
+        Reading.objects.all().delete()
+        Consumption.objects.all().delete()
+        Production.objects.all().delete()
         for p in Producer.objects.all():
             p.last_grid_reading = None
             p.last_production_reading = None

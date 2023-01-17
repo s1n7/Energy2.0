@@ -1,8 +1,9 @@
 from django.test import TestCase
 from energy2_backend.urls import *
 from datetime import datetime, timedelta
-
+from rest_framework.test import APIClient
 from input.views import InputHandler
+from decimal import Decimal
 
 producer_dump = {"name": "T", "street": "t", "zip_code": "t", "city": "2", "peak_power": 1}
 consumer_dump = {"name": "t", "email": "t@t.de", "phone": "0004123420", }
@@ -87,3 +88,46 @@ class InputTest(TestCase):
         ih.producer.refresh_from_db()
         self.assertEqual(ih._check_for_new_production(), True)
         ih._create_new_production()
+
+    def test_ppt_network(self):
+        user = User.objects.first()
+        factory = APIClient(enforce_csrf_checks=False)
+        # factory.force_login(user=user)
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=15),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=20),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertEqual(Production.objects.last().grid_meter_reading, 0.75)
+        response = factory.post("/input/", data={
+            'device_id': 23142,  # Max
+            'source_time': self.time_now + timedelta(minutes=21),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0.5,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 51513,  # Gertrude
+            'source_time': self.time_now + timedelta(minutes=25),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 1,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertAlmostEqual(Consumption.objects.filter(consumer__id=2).last().meter_reading, Decimal(0.6))

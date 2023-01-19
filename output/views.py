@@ -8,7 +8,7 @@ from django.db.models import Sum
 from django.shortcuts import render, get_object_or_404
 from rest_framework import permissions
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import PermissionDenied, NotFound
 from rest_framework.response import Response
 
 
@@ -66,14 +66,20 @@ Endpoint to get data for data display, charts etc.
         producers_total_revenue = 0
         producers_total_production = 0
         producers_total_used = 0
+        producers_total_consumption = 0
+        producers_total_saved = 0
         for producer in Producer.objects.all():
             producers[producer.name] = get_productions_and_aggregations(producer, start_date, end_date, request)
             producers_total_revenue += producers[producer.name]['consumers_total_revenue']
             producers_total_production += producers[producer.name]['total_production']
             producers_total_used += producers[producer.name]['total_used']
+            producers_total_consumption += producers[producer.name]['consumers_total_consumption']
+            producers_total_saved += producers[producer.name]['consumers_total_saved']
         data = {'producers_total_production': producers_total_production,
                 'producers_total_used': producers_total_used,
                 'producers_total_revenue': producers_total_revenue,
+                'producers_total_consumption': producers_total_consumption,
+                'producers_total_saved': producers_total_saved,
                 'producers': producers}
         print(datetime.now() - st)
         return Response(data)
@@ -90,10 +96,16 @@ def get_productions_and_aggregations(producer, start_date, end_date, request):
     consumers: {consumer.name: {consumptions_and_aggregations}}}
     """
     productions = Production.objects.filter(producer__id=producer.id, time__gte=start_date, time__lte=end_date)
-    # total_production = difference of first and last meter_reading
-    total_production = productions.last().production_meter_reading - productions.first().production_meter_reading
-    # total_used = difference total_production & total_grid_feed_in
-    total_used = total_production - (productions.last().grid_meter_reading - productions.first().grid_meter_reading)
+    if len(productions) == 0:
+        raise NotFound()
+    if len(productions) > 1:
+        # total_production = difference of first and last meter_reading
+        total_production = productions.last().production_meter_reading - productions.first().production_meter_reading
+        # total_used = difference total_production & total_grid_feed_in
+        total_used = total_production - (productions.last().grid_meter_reading - productions.first().grid_meter_reading)
+    else:
+        total_production = productions.first().production_meter_reading
+        total_used = total_production - productions.first().grid_meter_reading
     try:
         self_usage_percentage = round(total_used / total_production * 100, 1)
     except decimal.DivisionByZero:
@@ -107,14 +119,17 @@ def get_productions_and_aggregations(producer, start_date, end_date, request):
     # TODO: add consumers_total_revenue and consumers_total_consumption
     consumers_total_revenue = 0
     consumers_total_consumption = 0
+    consumers_total_saved = 0
     for consumer in consumers.values():
         consumers_total_revenue += consumer['total_price']
         consumers_total_consumption += consumer['total_consumption']
+        consumers_total_saved += consumer['total_saved']
     return {'total_production': total_production,
             'total_used': total_used,
             'self_usage_percentage': self_usage_percentage,
             'consumers_total_revenue': consumers_total_revenue,
             'consumers_total_consumption': consumers_total_consumption,
+            'consumers_total_saved': consumers_total_saved,
             'productions': serialized_productions,
             'consumers': consumers}
 

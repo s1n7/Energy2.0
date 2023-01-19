@@ -20,6 +20,8 @@ class Reading(models.Model):
 
 @receiver(post_save, sender=Reading)
 def update_last_reading(instance, sender, *args, **kwargs):
+    if kwargs['raw']:
+        return
     sensor = instance.sensor
     if sensor.type == "CM":
         entity = sensor.consumer

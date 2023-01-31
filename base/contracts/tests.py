@@ -22,4 +22,4 @@ class ContractTest(TestCase):
                                       "start_date": date(year=2020, month=1, day=31),
                                       "end_date": date(year=2021, month=1, day=31)}, format='json')
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(Rate.objects.get(name="Tarif").price, 5)
+        self.assertEqual(Rate.objects.get(name="Tarif1").price, 5)

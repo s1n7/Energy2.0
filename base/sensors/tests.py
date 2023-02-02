@@ -35,7 +35,6 @@ class ProducerTest(TestCase):
         self.assertEqual(Producer.objects.get(name="Test").production_sensor.device_id, 12523)
 
 producer_dump = {"name": "TestProd", "street": "t", "zip_code": "t", "city": "2", "peak_power": 1}
-consumer_dump = {"name": "TestConsumer", "email": "t@t.de", "phone": "0004123420"}
 
 class ConsumerTest(TestCase):   
 
@@ -68,10 +67,6 @@ class ConsumerTest(TestCase):
         rate_url = reverse('rate-detail', args=[rate.pk])
         prod_url = reverse('producer-detail', args=[prod.pk])
 
-        #con1 = Consumer.objects.create(**consumer_dump, producer=prod, sensor=cm, user=u1, rates=rate)
-        #con1.rates.add(rate)
-        #con1.save()
-
         response3 = factory.post(path="/consumers/",
                                 data={"name": "TestConsumer", "email": "t@t.de", "phone": "0004123420", "user": {
                                     "username": "TestC", "password": "sakdhdk124"
@@ -80,8 +75,8 @@ class ConsumerTest(TestCase):
         print(response3.content)
         self.assertEqual(response3.status_code, 201)
         print(Rate.objects.get(name="GoGreen").name)
-        print(Consumer.objects.get(name="TestConsumer").rates.first())
         self.assertEqual(Consumer.objects.get(name="TestConsumer").email, "t@t.de")
+        self.assertEqual(Consumer.objects.get(name="TestConsumer").user.username, "TestC")
         self.assertEqual(Consumer.objects.get(name="TestConsumer").sensor.device_id, 23142)
         self.assertEqual(Consumer.objects.get(name="TestConsumer").producer.name, "TestProd")
         self.assertEqual(Consumer.objects.get(name="TestConsumer").rates.first().price, 40)

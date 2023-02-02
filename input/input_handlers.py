@@ -269,9 +269,11 @@ class InputHandler:
         left = {'value': last_production.grid_meter_reading, 'time': last_production.time}
         right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
         target_time = new_production_reading.time
+        # Interpolation necessary in order to have grid_meter_reading at the time of new_production_reading
         interpolated_grid_meter_reading = self._interpolate(left, right, target_time)
         produced = new_production_reading.energy - last_production.production_meter_reading
         new_production_meter_reading = new_production_reading.energy
+        # If nothing was produced, i.e.:
         if produced < 0:
             produced = 0
             new_production_meter_reading = last_production.production_meter_reading
@@ -281,7 +283,7 @@ class InputHandler:
             'produced': produced,
             'production_meter_reading': new_production_meter_reading,
         }
-        grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
+        grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading ## genauer erklären
         if grid_feed_in < 0:
             grid_feed_in = 0
             interpolated_grid_meter_reading = last_production.grid_meter_reading
@@ -291,10 +293,10 @@ class InputHandler:
             new_production_data['used'] = new_production_data['produced'] - grid_feed_in
             new_production_data['grid_meter_reading'] = interpolated_grid_meter_reading
         else:
-            # because of the interpolation it is possible that a new production has fed more power in to the grid
-            # than produced, which should be impossible. Therefore, in that case the grid_meter_reading is adjusted
-            # so to the exact amount of actual production, so that "used" = 0. The rest of the grid_feed in will be
-            #  considered in one of the next productions
+            # because of the interpolation it is possible that a new production has fed more power into the grid
+            # than produced, which is impossible. Therefore, in that case the grid_meter_reading is adjusted
+            # to the exact amount of actual production, so that "used" = 0. The rest of the grid_feed in will be
+            # considered in one of the next productions
             new_production_data['used'] = 0
             new_production_data['grid_meter_reading'] = left['value'] + new_production_data['produced']
             new_production_data['grid_feed_in'] = new_production_data['produced']

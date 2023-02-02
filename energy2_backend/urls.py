@@ -27,7 +27,6 @@ from rest_framework.authtoken.views import obtain_auth_token
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
-router.register(r'groups', GroupViewSet)
 router.register(r'consumers', ConsumerView)
 router.register(r'producers', ProducerView)
 router.register(r'sensors', SensorView)
@@ -41,9 +40,9 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
     path('', include(router.urls)),
-    path('login/', obtain_auth_token, name='api_token_auth'),
+    path('login/', CustomLogin.as_view(), name='api_token_auth'),
     path('logout/', LogoutView.as_view()),
     path('input/', input_view),
-    path('output/', output_view)
+    path('output/', output_view),
 ]
 

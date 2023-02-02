@@ -30,6 +30,7 @@ class InputHandler:
 
     def handle_input(self):
         # if request is none, no reading should be created but check for new possible productions or consumptions
+        sensor = None
         if self.request is not None:
             request = self.request
             try:
@@ -48,17 +49,25 @@ class InputHandler:
             # Depending on the sensor type the according producer has to be fetched differently
             if sensor.type == "CM":  # Consumption Meter
                 self.producer = sensor.consumer.producer
+                if self.print_mode:
+                    print(f"Neuer Wert von Wohnung {sensor.consumer.name}")
             elif sensor.type == "PM":  # Production Meter
                 self.producer = sensor.producer
+                if self.print_mode:
+                    print(f"Neuer Wert von PV {sensor.producer.name}")
             elif sensor.type == "GM":  # Grid Meter
                 self.producer = sensor.producer_grid
+                if self.print_mode:
+                    print(f"Neuer Wert von Netzsensor der PV {sensor.producer_grid.name}")
             self._save_input_as_reading()
         self.producer.refresh_from_db()
-        while self._check_for_new_production():
-            self._create_new_production()
-            self.producer.refresh_from_db()
-        # after reading was created we now can check if new productions and/or consumptions are possible to create
+        # only check for new production if the new reading isnt a consumption
+        if not sensor or sensor.type != "CM":
+            while self._check_for_new_production():
+                self._create_new_production()
+                self.producer.refresh_from_db()
         self.producer.refresh_from_db()
+        # after reading was created we now can check if new productions and/or consumptions are possible to create
         while self._check_for_new_consumption():
             self._create_consumptions()
             self.producer.refresh_from_db()
@@ -76,6 +85,9 @@ class InputHandler:
             energy = data['Lieferung_Gesamt_kWh']
         elif sensor.type == "PM":
             energy = data['Lieferung_Gesamt_kWh']
+        if self.print_mode:
+            print(f"New Meter: {energy}")
+
         # store reading data and create Reading object
         try:
             time = datetime.datetime.strptime(data['source_time'], '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
@@ -210,7 +222,7 @@ class InputHandler:
 
     def _assign_rate_and_price_to_consumption(self, consumption):
         """
-        For given consumption, the
+        For given consumption, the suitable rate is searched and used to calculate the price
         :param consumption:  {meter_reading, time, last_consumption, self_consumption, ...}
         :return: consumption:  {...,  price, reduced_price, saved, grid_price, rate}
         """
@@ -261,18 +273,27 @@ class InputHandler:
         return True
 
     def _create_new_production(self):
+        """
+        !!! Only call after _check_for_new_production !!!
+        Creates newest production for given producer
+        :return:
+        """
         last_production = self.producer.production_set.last()
+        # get first reading that came after the last production
         new_production_reading = Reading.objects.filter(sensor__type="PM", time__gt=last_production.time,
                                                         sensor__producer=self.producer).first()
+        # get first reading that came after/at the same time as the new_production_reading
         new_grid_reading = Reading.objects.filter(sensor__type="GM", sensor__producer_grid=self.producer,
                                                   time__gte=new_production_reading.time).first()
+        # calculate grid_meter at the time of new_production_reading
         left = {'value': last_production.grid_meter_reading, 'time': last_production.time}
         right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
         target_time = new_production_reading.time
         interpolated_grid_meter_reading = self._interpolate(left, right, target_time)
+        # produced = difference new meter old meter
         produced = new_production_reading.energy - last_production.production_meter_reading
         new_production_meter_reading = new_production_reading.energy
-        if produced < 0:
+        if produced < 0:  # produced can't be negative
             produced = 0
             new_production_meter_reading = last_production.production_meter_reading
         new_production_data = {
@@ -281,8 +302,9 @@ class InputHandler:
             'produced': produced,
             'production_meter_reading': new_production_meter_reading,
         }
+        # grid_feed_in = difference new meter old meter
         grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
-        if grid_feed_in < 0:
+        if grid_feed_in < 0:  # cant be negative
             grid_feed_in = 0
             interpolated_grid_meter_reading = last_production.grid_meter_reading
         new_production_data['grid_feed_in'] = grid_feed_in

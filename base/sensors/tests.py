@@ -7,7 +7,6 @@ from django.contrib.auth.models import User
 from base.sensors.models import Sensor, Producer, Consumer
 from base.sensors.views import ProducerView
 from base.contracts.models import Rate
-
 from django.urls import reverse
 
 

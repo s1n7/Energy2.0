@@ -67,6 +67,21 @@ class InputTest(TestCase):
         ih.producer.refresh_from_db()
         self.assertEqual(ih._check_for_new_production(), True)
 
+    def test_interpolate(self):
+        time_now = self.time_now
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        producer = Producer.objects.first()
+        print(producer.production_set)
+        last_production = producer.production_set.last()
+        new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=15),
+                                                        sensor=Producer.objects.first().production_sensor)
+        new_grid_reading = Reading.objects.create(energy=Decimal(1.5), power=0, time=time_now + timedelta(minutes=20),
+                                                  sensor=Producer.objects.first().grid_sensor)
+        left = {'value': last_production.grid_meter_reading, 'time': last_production.time}
+        right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
+        target_time = new_production_reading.time
+        self.assertEqual(ih._interpolate(left, right, target_time), 1.125)
+
     def test_ppt_example(self):
         time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())

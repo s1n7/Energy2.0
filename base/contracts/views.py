@@ -10,10 +10,10 @@ from base.contracts.serializers import ContractSerializer, RateSerializer
 class ContractView(viewsets.ModelViewSet):
     queryset = Contract.objects.all()
     serializer_class = ContractSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
 
 class RateView(viewsets.ModelViewSet):
     queryset = Rate.objects.all()
     serializer_class = RateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]

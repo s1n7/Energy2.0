@@ -266,11 +266,14 @@ class InputHandler:
                                                         sensor__producer=self.producer).first()
         new_grid_reading = Reading.objects.filter(sensor__type="GM", sensor__producer_grid=self.producer,
                                                   time__gte=new_production_reading.time).first()
+        
+        # Interpolation necessary in order to have grid_meter_reading at the time of new_production_reading
         left = {'value': last_production.grid_meter_reading, 'time': last_production.time}
         right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
         target_time = new_production_reading.time
-        # Interpolation necessary in order to have grid_meter_reading at the time of new_production_reading
         interpolated_grid_meter_reading = self._interpolate(left, right, target_time)
+        
+        # Produced energy in a certain time span is the difference between the previous and the current reading
         produced = new_production_reading.energy - last_production.production_meter_reading
         new_production_meter_reading = new_production_reading.energy
         # If nothing was produced, i.e.:
@@ -283,13 +286,16 @@ class InputHandler:
             'produced': produced,
             'production_meter_reading': new_production_meter_reading,
         }
-        grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading ## genauer erklären
+
+        # grid_feed_in at time of new_production_reading
+        grid_feed_in = interpolated_grid_meter_reading - last_production.grid_meter_reading
         if grid_feed_in < 0:
             grid_feed_in = 0
             interpolated_grid_meter_reading = last_production.grid_meter_reading
         new_production_data['grid_feed_in'] = grid_feed_in
+
         if new_production_data['produced'] > grid_feed_in:
-            # only the produced energy was really used that was not fed into the grid
+            # only the produced energy which was not fed into the grid was really used
             new_production_data['used'] = new_production_data['produced'] - grid_feed_in
             new_production_data['grid_meter_reading'] = interpolated_grid_meter_reading
         else:

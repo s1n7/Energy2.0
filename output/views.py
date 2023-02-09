@@ -1,4 +1,4 @@
-import decimal
+from decimal import Decimal
 from datetime import datetime, timedelta
 
 from base.data.models import Production, Consumption
@@ -57,6 +57,7 @@ Endpoint to get data for data display, charts etc.
     elif consumer_id:
         consumer = get_object_or_404(Consumer, pk=consumer_id)
         data = get_consumptions_and_aggregations(consumer, start_date, end_date, request)
+        data.update(get_productions_and_aggregations(consumer.producer, start_date, end_date, request, True))
         print(datetime.now() - st)
         return Response(data)
     # if no consumer_id is set and no production_id
@@ -75,17 +76,20 @@ Endpoint to get data for data display, charts etc.
             producers_total_used += producers[producer.name]['total_used']
             producers_total_consumption += producers[producer.name]['consumers_total_consumption']
             producers_total_saved += producers[producer.name]['consumers_total_saved']
-        data = {'producers_total_production': producers_total_production,
-                'producers_total_used': producers_total_used,
-                'producers_total_revenue': producers_total_revenue,
-                'producers_total_consumption': producers_total_consumption,
-                'producers_total_saved': producers_total_saved,
-                'producers': producers}
+    
+        data = {
+            'producers_total_production': producers_total_production,
+            'producers_total_used': producers_total_used,
+            'producers_total_revenue': producers_total_revenue,
+            'producers_total_consumption': producers_total_consumption,
+            'producers_total_saved': producers_total_saved,
+            'producers': producers
+        }
         print(datetime.now() - st)
         return Response(data)
 
 
-def get_productions_and_aggregations(producer, start_date, end_date, request):
+def get_productions_and_aggregations(producer, start_date, end_date, request, only_production=False):
     """
     Get all productions of producer in given timeframe and calculates aggregations @return
     :param producer:
@@ -104,39 +108,79 @@ def get_productions_and_aggregations(producer, start_date, end_date, request):
         # total_used = difference total_production & total_grid_feed_in
         total_used = total_production - (productions.last().grid_meter_reading - productions.first().grid_meter_reading)
     else:
+        # if only one is in timeframe -> difference wont work
         total_production = productions.first().production_meter_reading
         total_used = total_production - productions.first().grid_meter_reading
     try:
         self_usage_percentage = round(total_used / total_production * 100, 1)
-    except decimal.DivisionByZero:
+    except Exception as e:
         self_usage_percentage = None
     serialized_productions = ProductionSerializer(productions, many=True, context={'request': request}).data
+    data = {'productions' : serialized_productions}
+    if not only_production:
+        consumers = {}
+        for consumer in producer.consumer_set.all():
+            consumptions = get_consumptions_and_aggregations(consumer, start_date, end_date, request)
+            consumers[consumer.name] = consumptions
 
-    consumers = {}
-    for consumer in producer.consumer_set.all():
-        consumptions = get_consumptions_and_aggregations(consumer, start_date, end_date, request)
-        consumers[consumer.name] = consumptions
-    # TODO: add consumers_total_revenue and consumers_total_consumption
-    consumers_total_revenue = 0
-    consumers_total_consumption = 0
-    consumers_total_saved = 0
-    for consumer in consumers.values():
-        consumers_total_revenue += consumer['total_price']
-        consumers_total_consumption += consumer['total_consumption']
-        consumers_total_saved += consumer['total_saved']
-    return {'total_production': total_production,
+        # aggregate all consumptions to one summed dataset
+        consumptions = []
+        for i in range(0, len(list(consumers.values())[0]['consumptions'])):
+            consumption = 0
+            self_consumption = 0
+            grid_consumption = 0
+            time = list(consumers.values())[0]['consumptions'][i]['time']
+            for consumer in consumers.values():
+                consumption += Decimal(consumer['consumptions'][i]['consumption'])
+                self_consumption += Decimal(consumer['consumptions'][i]['self_consumption'])
+                grid_consumption += Decimal(consumer['consumptions'][i]['grid_consumption'])
+            consumptions.append({
+                'time': time,
+                'consumption': consumption,
+                'self_consumption': self_consumption,
+                'grid_consumption': grid_consumption
+            })
+
+        # revenue, consumption, saved over all consumers of producer
+        consumers_total_revenue = 0
+        consumers_total_consumption = 0
+        consumers_total_saved = 0
+        for consumer in consumers.values():
+            consumers_total_revenue += consumer['total_price']
+            consumers_total_consumption += consumer['total_consumption']
+            consumers_total_saved += consumer['total_saved']
+        data.update({
+            'total_production': total_production,
             'total_used': total_used,
             'self_usage_percentage': self_usage_percentage,
             'consumers_total_revenue': consumers_total_revenue,
             'consumers_total_consumption': consumers_total_consumption,
             'consumers_total_saved': consumers_total_saved,
             'productions': serialized_productions,
-            'consumers': consumers}
+            'consumers': consumers,
+            'consumptions': consumptions
+        })
+        data.update({
+            'total_production': total_production,
+            'total_used': total_used,
+            'self_usage_percentage': self_usage_percentage,
+            'consumers_total_revenue': consumers_total_revenue,
+            'consumers_total_consumption': consumers_total_consumption,
+            'consumers_total_saved': consumers_total_saved,
+            'consumers': consumers,
+            'consumptions': consumptions
+        })
+    return data
 
 
 def get_consumptions_and_aggregations(consumer, start_date, end_date, request):
     consumptions = Consumption.objects.filter(consumer__id=consumer.id, time__gte=start_date, time__lte=end_date)
-    total_consumption = consumptions.last().meter_reading - consumptions.first().meter_reading
+    if len(consumptions) == 0:
+        raise NotFound()
+    if len(consumptions) > 1:
+        total_consumption = consumptions.last().meter_reading - consumptions.first().meter_reading
+    else:
+        total_consumption = consumptions.first().meter_reading
     total_self_consumption, total_price, total_reduced_price, total_saved = \
         consumptions.aggregate(Sum('self_consumption'), Sum('price'), Sum('reduced_price'), Sum('saved')).values()
     total_grid_consumption = total_consumption - total_self_consumption

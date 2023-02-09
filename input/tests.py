@@ -50,16 +50,37 @@ class InputTest(TestCase):
                                                    grid_meter_reading=0.05, producer=Producer.objects.first())
         new_reading = Reading.objects.create(energy=0.2, power=0, sensor=Consumer.objects.get(id=1).sensor,
                                              time=time_now + timedelta(minutes=23))
-        # TODO: Test for new consumption check returning False
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        self.assertEqual(ih._check_for_new_consumption(), False)
         new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
                                                time=time_now + timedelta(minutes=25))
+        self.assertEqual(ih._check_for_new_consumption(), True)                          
         new_production_reading = Reading.objects.create(energy=0.3, power=0, time=time_now + timedelta(minutes=30),
                                                         sensor=Producer.objects.first().production_sensor)
-        # TODO: test for new producer check returning False
+        ih.producer.refresh_from_db()
+        self.assertEqual(ih._check_for_new_production(), False)
         new_grid_reading = Reading.objects.create(energy=0.1, power=0, time=time_now + timedelta(minutes=35),
                                                   sensor=Producer.objects.first().grid_sensor)
+        print(Producer.objects.get(id=1).last_production_reading)
+        print(Producer.objects.get(id=1).last_grid_reading)
+        self.assertEqual(ih._check_for_new_production(), False)
+        ih.producer.refresh_from_db()
+        self.assertEqual(ih._check_for_new_production(), True)
+
+    def test_interpolate(self):
+        time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())
-        ih.handle_input()
+        producer = Producer.objects.first()
+        print(producer.production_set)
+        last_production = producer.production_set.last()
+        new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=15),
+                                                        sensor=Producer.objects.first().production_sensor)
+        new_grid_reading = Reading.objects.create(energy=Decimal(1.5), power=0, time=time_now + timedelta(minutes=20),
+                                                  sensor=Producer.objects.first().grid_sensor)
+        left = {'value': last_production.grid_meter_reading, 'time': last_production.time}
+        right = {'value': new_grid_reading.energy, 'time': new_grid_reading.time}
+        target_time = new_production_reading.time
+        self.assertEqual(ih._interpolate(left, right, target_time), 1.125)
 
     def test_ppt_example(self):
         time_now = self.time_now
@@ -67,7 +88,6 @@ class InputTest(TestCase):
 
         new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=15),
                                                         sensor=Producer.objects.first().production_sensor)
-        self.assertEqual(ih._check_for_new_production(), False)
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=20),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
@@ -86,8 +106,10 @@ class InputTest(TestCase):
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=35),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
+        print(Reading.objects.all())
         self.assertEqual(ih._check_for_new_production(), True)
         ih._create_new_production()
+        self.assertEqual(Production.objects.last().used, 0)
 
     def test_ppt_network(self):
         user = User.objects.first()

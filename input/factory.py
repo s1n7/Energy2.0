@@ -6,7 +6,7 @@ from time import sleep
 
 from base.contracts.models import Rate
 from base.data.models import Production, Consumption, Reading
-from base.sensors.models import Producer, Consumer
+from base.sensors.models import Producer, Consumer, Sensor
 from input.input_handlers import InputHandler
 from numpy import random
 import requests as make_request
@@ -14,6 +14,12 @@ import requests as make_request
 MONTH_FACTOR2 = [.25, .25, .5, .5, .75, 1.75, 3, 2, 1.75, .75, .25, .25]
 MONTH_FACTOR3 = [0.396, 0.504, 0.8640000000000001, 1.392, 1.548, 1.608, 1.62, 1.3800000000000001, 1.1400000000000001,
                  0.8640000000000001, 0.40800000000000003, 0.28800000000000003]
+
+
+def sum_to_n(n):
+    values = [0.0, n] + list(random.uniform(low=0.0, high=n, size=n - 1))
+    values.sort()
+    return [values[i + 1] - values[i] for i in range(n)]
 
 
 class P2PEnergySimulator:
@@ -25,19 +31,23 @@ class P2PEnergySimulator:
     session = make_request.session()
     daily_production_boost = {'date': "", 'boost': 0}
 
-    def __init__(self, producer_id, start_datetime, network_requests=True):
+    def __init__(self, producer_id, start_datetime=None, network_requests=True):
         """
         Create a Simulator Instance
         :param producer_id: set the producer which you want to simulate the production and consumption of its consumers
         :param start_datetime: datetime from which the simulation starts
         """
         producer = Producer.objects.get(id=producer_id)
-        self.timestamp = start_datetime
+        if start_datetime:
+            self.timestamp = start_datetime
+        else:
+            self.timestamp = Sensor.objects.get(producer__id=producer_id).reading_set.last().time
         consumers = []
         for consumer in producer.consumer_set.all():
             consumers.append({'id': consumer.id, 'mean_consumption': float(
                 input(f"Jahresdurchscnittsverbrauch von Wohnung:{consumer.name}")),
-                              'offset': timedelta(minutes=random.uniform(0, 15))})
+                              'offset': timedelta(minutes=random.uniform(0, 15)),
+                              'hour_factors': sum_to_n(24)})
         self.consumers = consumers
         self.producer = {'id': producer_id,
                          'mean_production': float(input(f"Jahresdurchscnittsproduktion von PV:{producer.name}")),
@@ -47,6 +57,14 @@ class P2PEnergySimulator:
         self.network_requests = network_requests
         if not network_requests:
             self.ih = InputHandler()
+
+    @staticmethod
+    def simulate_all():
+        producers = Producer.objects.all()
+        factories = []
+        for producer in producers:
+            sim = P2PEnergySimulator(producer.id)
+            sim.simulate_until(datetime.now())
 
     def next(self):
         """
@@ -58,25 +76,30 @@ class P2PEnergySimulator:
         # new production meter is old meter + simulated production
         new_production_meter = new_production + producer.production_set.last().production_meter_reading
         self._create_request(producer.production_sensor, new_production_meter, self.producer['production_offset'])
-        new_grid_feed_in = self._simulate_grid_feed_in(new_production)
-        # new grid meter is old meter + simulated grid_feed_in
-        new_grid_meter = producer.production_set.last().grid_meter_reading + new_grid_feed_in
-        self._create_request(producer.grid_sensor, new_grid_meter, self.producer['grid_offset'])
+
+        total_consumption = 0
         for consumer in self.consumers:
             consumer_instance = Consumer.objects.get(id=consumer['id'])
             new_consumption = self._simulate_consumption(consumer)
+            total_consumption += new_consumption
             new_consumption_meter = new_consumption + consumer_instance.consumption_set.last().meter_reading
             self._create_request(consumer_instance.sensor, new_consumption_meter, consumer['offset'])
+        new_grid_feed_in = self._simulate_grid_feed_in(new_production, total_consumption)
+        # new grid meter is old meter + simulated grid_feed_in
+        new_grid_meter = producer.production_set.last().grid_meter_reading + new_grid_feed_in
+        self._create_request(producer.grid_sensor, new_grid_meter, self.producer['grid_offset'])
         self._send_requests()
         self.timestamp += timedelta(minutes=15)
 
-    def simulate_until(self, end_date):
+    def simulate_until(self, end_date=None):
         """
         Simulates Input until the given end_date.
         !!! ~2min per simulated day (1min)!!!
         :param end_date: date to which the simulation will run
         :return:
         """
+        if not end_date:
+            end_date = datetime.now()
         st = datetime.now()
         self.setup()
         while self.timestamp < end_date:
@@ -90,9 +113,9 @@ class P2PEnergySimulator:
         :return:
         """
         producer = Producer.objects.get(id=self.producer['id'])
-        time = datetime.strptime(str(self.timestamp - timedelta(minutes=15)),
-                                 '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
         if not producer.production_set.first():
+            time = datetime.strptime(str(self.timestamp - timedelta(minutes=15)),
+                                     '%Y-%m-%d %H:%M:%S.%f').isoformat(' ', 'seconds')
             production = Production.objects.create(time=time, produced=0, used=0,
                                                    production_meter_reading=0, grid_meter_reading=0, producer=producer,
                                                    grid_feed_in=0)
@@ -116,7 +139,6 @@ class P2PEnergySimulator:
                 daily_boost = {'date': timestamp.date(), 'boost': random.uniform(0, 2)}
             else:
                 daily_boost['boost'] = 0
-                # print(timestamp.date(), daily_boost)
         if daily_boost['date'] == timestamp.date():
             hour_factor *= daily_boost['boost']
 
@@ -136,14 +158,29 @@ class P2PEnergySimulator:
         return Decimal(production)
 
     @staticmethod
-    def _simulate_grid_feed_in(production):
-        random2 = random.random() * random.uniform(0.5, 1)
-        return production * Decimal(random2)
+    def _simulate_grid_feed_in(production, consumption):
+        """
+        the max grid_feed_in is all that was produced.
+        If more or equal was consumed than produced:
+            the grid_feed_in can be 0, because all produced power could have been used directly.
+        Else:
+            grid_feed_in has to be atleast the difference of produced and consumed, so that all power that could not
+            have been used directly is registered in grid_feed_in
+
+        :param production: produced in this iteration
+        :param consumption: consumed in this iteration
+        :return: fed in, in this iteration
+        """
+        minimum = 0
+        if consumption < production:
+            minimum = production - consumption
+        res = Decimal(random.uniform(minimum, production))
+        return res
 
     def _simulate_consumption(self, consumer):
         timestamp = self.timestamp
         current_hour = timestamp.hour
-        hour_factor = self.CONS_HOUR_FACTOR[current_hour]
+        hour_factor = consumer['hour_factors'][current_hour]
 
         # To make simulations more different from each other
         if random.random() < 0.1:
@@ -151,12 +188,12 @@ class P2PEnergySimulator:
         # if we take the average and divide it like below we have a consumption we can add every 15min for a year to
         # exactly get the year average. In some hours more is consumed than in others. That's why the 15-min average
         # is multiplied by a set factor and possibly by the boost factor above.
-        if self.CONS_HOUR_FACTOR[current_hour] > 0:
+        if consumer['hour_factors'][current_hour] > 0:
             mean = consumer['mean_consumption'] / 365 / 24 / 4 * hour_factor
             # The outcome is then taken as the mean for a normal distribution, to make it non-deterministic
-            consumption = random.normal(mean, mean * 0.1)
+            consumption = random.normal(mean, mean * 0.2)
         # no negative consumption possible
-        if self.CONS_HOUR_FACTOR[current_hour] == 0 or consumption < 0:
+        if consumer['hour_factors'][current_hour] == 0 or consumption < 0:
             consumption = 0
 
         return Decimal(consumption)

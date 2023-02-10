@@ -109,8 +109,8 @@ def get_productions_and_aggregations(producer, start_date, end_date, request, on
         total_used = total_production - (productions.last().grid_meter_reading - productions.first().grid_meter_reading)
     else:
         # if only one is in timeframe -> difference wont work
-        total_production = productions.first().production_meter_reading
-        total_used = total_production - productions.first().grid_meter_reading
+        total_production = productions.first().produced
+        total_used = productions.first().used
     try:
         self_usage_percentage = round(total_used / total_production * 100, 1)
     except Exception as e:
@@ -180,7 +180,7 @@ def get_consumptions_and_aggregations(consumer, start_date, end_date, request):
     if len(consumptions) > 1:
         total_consumption = consumptions.last().meter_reading - consumptions.first().meter_reading
     else:
-        total_consumption = consumptions.first().meter_reading
+        total_consumption = consumptions.first().consumption
     total_self_consumption, total_price, total_reduced_price, total_saved = \
         consumptions.aggregate(Sum('self_consumption'), Sum('price'), Sum('reduced_price'), Sum('saved')).values()
     total_grid_consumption = total_consumption - total_self_consumption

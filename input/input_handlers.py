@@ -71,6 +71,8 @@ class InputHandler:
         while self._check_for_new_consumption():
             self._create_consumptions()
             self.producer.refresh_from_db()
+        if self.print_mode:
+            print("\n\n")
 
     def _save_input_as_reading(self):
         """
@@ -314,12 +316,13 @@ class InputHandler:
             new_production_data['used'] = new_production_data['produced'] - grid_feed_in
             new_production_data['grid_meter_reading'] = interpolated_grid_meter_reading
         else:
-            # because of the interpolation it is possible that a new production has fed more power into the grid
-            # than produced, which is impossible. Therefore, in that case the grid_meter_reading is adjusted
-            # to the exact amount of actual production, so that "used" = 0. The rest of the grid_feed in will be
-            # considered in one of the next productions
+            # because of the interpolation it is possible that in our calculations a new production has fed more
+            # power into the grd than produced, which is impossible in reality. Therefore, in that case the
+            # grid_meter_reading is adjusted to the exact amount of actual production, so that "used" = 0. The rest
+            # of the grid_feed in will be considered in one of the next productions
             new_production_data['used'] = 0
-            new_production_data['grid_meter_reading'] = left['value'] + new_production_data['produced']
+            new_production_data['grid_meter_reading'] = \
+                last_production.grid_meter_reading + new_production_data['produced']
             new_production_data['grid_feed_in'] = new_production_data['produced']
 
         new_production = Production.objects.create(**new_production_data)

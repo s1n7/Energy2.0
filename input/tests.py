@@ -173,6 +173,13 @@ class InputTest(TestCase):
         ih._create_new_production()
         ih._create_consumptions()
 
+        self.assertEqual(Reading.objects.last().power, 0)
+        print(Consumption.objects.last().consumption)
+        print(Consumption.objects.last().time)
+    
+        #Check whether there are consumptions < 0
+        self.assertEqual(Consumption.objects.count(), Consumption.objects.filter(consumption=0).count())
+
     '''Finally test whole input handler'''
 
     # Test _handle_input function

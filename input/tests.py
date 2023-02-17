@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from rest_framework.test import APIClient
 from input.views import InputHandler
 from decimal import Decimal
+from pprint import pprint
 
 producer_dump = {"name": "T", "street": "t", "zip_code": "t", "city": "2", "peak_power": 1}
 consumer_dump = {"name": "t", "email": "t@t.de", "phone": "0004123420", }
@@ -173,12 +174,17 @@ class InputTest(TestCase):
         ih._create_new_production()
         ih._create_consumptions()
 
-        self.assertEqual(Reading.objects.last().power, 0)
-        print(Consumption.objects.last().consumption)
-        print(Consumption.objects.last().time)
-    
-        #Check whether there are consumptions < 0
-        self.assertEqual(Consumption.objects.count(), Consumption.objects.filter(consumption=0).count())
+        self.assertEqual(Consumption.objects.last().time, datetime(day=12, month=1, year=2023, hour=10, minute=15))
+        self.assertEqual(Consumption.objects.last().consumption, round(Decimal(0.3), 4))
+        self.assertEqual(Consumption.objects.last().grid_consumption, round(Decimal(0.225), 4))
+        self.assertEqual(Consumption.objects.last().grid_price, round(Decimal(9.0), 4))
+        self.assertEqual(Consumption.objects.last().grid_price, round(Decimal(9.0), 4))
+        self.assertEqual(Consumption.objects.last().meter_reading, round(Decimal(0.3), 4))
+        self.assertEqual(Consumption.objects.last().price, round(Decimal(11.625), 4))
+        self.assertEqual(Consumption.objects.last().reduced_price, round(Decimal(2.625), 4))
+        self.assertEqual(Consumption.objects.last().saved, round(Decimal(0.375), 4))
+        self.assertEqual(Consumption.objects.last().self_consumption, round(Decimal(0.075), 4))
+
 
     '''Finally test whole input handler'''
 

@@ -74,7 +74,7 @@ class InputTest(TestCase):
     '''Then test main functions'''
 
     # Test _check_for_new_productions() and _create_new_production() functions with self-created objects
-    def test_ppt_example(self):
+    def test_productions(self):
         time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())
 
@@ -97,15 +97,7 @@ class InputTest(TestCase):
         # new_production_data['used'] = new_production_data['produced'] - grid_feed_in = 1 - 0.75 = 0.25
         self.assertEqual(Production.objects.last().used, 0.25)
         
-        # Consumption readings are not used in this test function, but are created in order to simulate a
-        # natural input of readings for executing the next assertEqual test of the _create_new_production function
-        max_reading = new_reading = Reading.objects.create(energy=0.5, power=0,
-                                                           sensor=Consumer.objects.get(id=1).sensor,
-                                                           time=time_now + timedelta(minutes=21))
-        gertrude_reading = new_reading = Reading.objects.create(energy=1, power=0,
-                                                                sensor=Consumer.objects.get(id=2).sensor,
-                                                                time=time_now + timedelta(minutes=25))
-        
+        # Try with new readings
         new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=30),
                                                         sensor=Producer.objects.first().production_sensor)
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=35),

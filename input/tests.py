@@ -72,6 +72,28 @@ class InputTest(TestCase):
         # Hence, interpolated grid_reading value is 1.5 * (3/4) = 1.125
         self.assertEqual(ih._interpolate(left, right, target_time), 1.125)
 
+
+    # Test _divide_production_among_consumption function and _assign_rate_and_price_to_consumption function
+    def test_divide_production_among_consumption_assign_rate_and_price_to_consumption(self):
+        time_now = self.time_now
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
+                                                   production_meter_reading=0.2, grid_feed_in=0.05,
+                                                   grid_meter_reading=0.05, producer=Producer.objects.first())
+        
+        consumer = Consumer.objects.get(id=2)
+        consumption = Consumption.objects.get(id=2)
+        new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
+                                               time=time_now + timedelta(minutes=25))
+        
+        consumptions = {1:{'meter_reading':Decimal(0.3), 'consumption':Decimal(0.3), 'last_consumption':consumption, 
+                        'time':time_now + timedelta(minutes=15), 'consumer':consumer, 'production':production}}
+
+        ih.producer.refresh_from_db()
+        ih._divide_production_among_consumption(consumptions)
+
+
+
     '''Then test main functions'''
 
     # Test _check_for_new_productions() and _create_new_production() functions with self-created objects
@@ -177,7 +199,6 @@ class InputTest(TestCase):
         self.assertEqual(Consumption.objects.last().time, datetime(day=12, month=1, year=2023, hour=10, minute=15))
         self.assertEqual(Consumption.objects.last().consumption, round(Decimal(0.3), 4))
         self.assertEqual(Consumption.objects.last().grid_consumption, round(Decimal(0.225), 4))
-        self.assertEqual(Consumption.objects.last().grid_price, round(Decimal(9.0), 4))
         self.assertEqual(Consumption.objects.last().grid_price, round(Decimal(9.0), 4))
         self.assertEqual(Consumption.objects.last().meter_reading, round(Decimal(0.3), 4))
         self.assertEqual(Consumption.objects.last().price, round(Decimal(11.625), 4))

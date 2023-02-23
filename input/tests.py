@@ -58,6 +58,8 @@ class InputTest(TestCase):
         producer = Producer.objects.first()
         print(producer.production_set.last())
         last_production = producer.production_set.last() # last_production.time = time_now = 10:00 
+
+        # Create exemplary data
         new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=15),  # 10:15
                                                         sensor=Producer.objects.first().production_sensor)
         new_grid_reading = Reading.objects.create(energy=Decimal(1.5), power=0, time=time_now + timedelta(minutes=20), # 10:20
@@ -71,10 +73,12 @@ class InputTest(TestCase):
         # Hence, interpolated grid_reading value is 1.5 * (3/4) = 1.125
         self.assertEqual(ih._interpolate(left, right, target_time), 1.125)
 
-    '''Then test main functions'''
+    ''' ---- Then test main functions ---- '''
 
-    # Test _check_for_new_productions() and _create_new_production() functions with self-created objects
-    def test_ppt_example(self):
+    '''4 tests for _check_for_new_productions() and _create_new_production()'''
+
+    # (1) Regular cases
+    def test_productions_regular(self):
         time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())
 
@@ -97,15 +101,7 @@ class InputTest(TestCase):
         # new_production_data['used'] = new_production_data['produced'] - grid_feed_in = 1 - 0.75 = 0.25
         self.assertEqual(Production.objects.last().used, 0.25)
         
-        # Consumption readings are not used in this test function, but are created in order to simulate a
-        # natural input of readings for executing the next assertEqual test of the _create_new_production function
-        max_reading = new_reading = Reading.objects.create(energy=0.5, power=0,
-                                                           sensor=Consumer.objects.get(id=1).sensor,
-                                                           time=time_now + timedelta(minutes=21))
-        gertrude_reading = new_reading = Reading.objects.create(energy=1, power=0,
-                                                                sensor=Consumer.objects.get(id=2).sensor,
-                                                                time=time_now + timedelta(minutes=25))
-        
+        # Try with new readings
         new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=30),
                                                         sensor=Producer.objects.first().production_sensor)
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=35),
@@ -120,37 +116,121 @@ class InputTest(TestCase):
         self.assertEqual(Production.objects.last().produced, 0)
         self.assertEqual(Production.objects.last().used, 0)
 
-        # Try with different order of readings
-        max_reading = new_reading = Reading.objects.create(energy=0.5, power=0,
-                                                           sensor=Consumer.objects.get(id=1).sensor,
-                                                           time=time_now + timedelta(minutes=37))
-        new_grid_reading = Reading.objects.create(energy=Decimal(1.7), power=0, time=time_now + timedelta(minutes=39),
+    # (2) Edge case: Try with different order of readings, i.e. when grid input comes before production input
+    def test_productions_edge_order(self):
+        time_now = self.time_now
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        
+        new_grid_reading = Reading.objects.create(energy=Decimal(0.8), power=0, time=time_now + timedelta(minutes=39),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
         self.assertEqual(ih._check_for_new_production(), False)
-        gertrude_reading = new_reading = Reading.objects.create(energy=1, power=0,
-                                                                sensor=Consumer.objects.get(id=2).sensor,
-                                                                time=time_now + timedelta(minutes=44))
+
         new_production_reading = Reading.objects.create(energy=Decimal(1.2), power=0, time=time_now + timedelta(minutes=46),
                                                         sensor=Producer.objects.first().production_sensor)
         self.assertEqual(ih._check_for_new_production(), False)
         ih.producer.refresh_from_db()
-        # Still False because grid_reading to be considered must be newer than production_reading. So we keep waiting
+        # Still False because grid_reading to be considered must be newer than production_reading. So we keep waiting...
         self.assertEqual(ih._check_for_new_production(), False)
 
-        new_grid_reading = Reading.objects.create(energy=Decimal(1.9), power=0, time=time_now + timedelta(minutes=48),
+        new_grid_reading = Reading.objects.create(energy=Decimal(0.9), power=0, time=time_now + timedelta(minutes=48),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
-        self.assertEqual(ih._check_for_new_production(), True) # Now this is the case
+        self.assertEqual(ih._check_for_new_production(), True) # ... now this is the case
 
         ih._create_new_production()
         self.assertEqual(Production.objects.last().time, datetime(day=12, month=1, year=2023, hour=10, minute=46))
-        self.assertEqual(Production.objects.last().produced, round(Decimal(0.2), 4))
-        self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(1.2), 4))
-        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(0.2), 4))
-        self.assertEqual(Production.objects.last().used, 0)
-        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(0.95), 4))
+        self.assertEqual(Production.objects.last().produced, 1.2)
+        self.assertEqual(Production.objects.last().production_meter_reading, 1.2)
+        self.assertEqual(Production.objects.last().grid_feed_in, 0.8625)
+        self.assertEqual(Production.objects.last().used, 0.3375)
+        self.assertEqual(Production.objects.last().grid_meter_reading, 0.8625)
+
+    # (3) Edge case: if no production input for a long time (e.g. because communication module of sensor is broken and cannot deliver data) 
+    # --> spins in while loop in handle_input as long as there is no production data
+    def test_productions_edge_noProduction(self):
+        time_now = self.time_now
+        user = User.objects.first()
+        factory = APIClient(enforce_csrf_checks=False)
+        
+        # Simulates incoming input from which readings can be created
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=15),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=20),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertEqual(Producer.production_set.last().time, self.time_now + timedelta(minutes=15))
+        self.assertEqual(Production.objects.last().grid_meter_reading, 0.75)
+
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=74),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1.86,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=102), # 10:00 + 102 minutes = 11:42
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 2.1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        # No new production could have been created, i.e. the time is still the same as the first production
+        self.assertEqual(Producer.production_set.last().time, self.time_now + timedelta(minutes=15))
+        
+        # Imagine in the meantime several more grid data inputs have come and now finally...
+        # ... the sensor could be fixed and is delivering input data again
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=391), # 16:31
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 14.68,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        # Now we need to wait for one more grid input
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=394), # 16:34
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 6.94,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=391))
+        self.assertEqual(Production.objects.last().produced, 13.68)
+        self.assertEqual(Production.objects.last().production_meter_reading, 14.68)
+        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(6.1371573604),4))
+        self.assertEqual(Production.objects.last().used, round(Decimal(7.5428426396),4))
+        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(6.8871573604),4))
+
+    # (4) Edge case: if no grid input for a long time
+    def test_productions_edge_noGrid(self):
+        time_now = self.time_now
+
     
+    '''x tests for _check_for_new_consumption() and _create_consumptions()'''
+
     # Test _check_for_new_consumption() and _create_consumptions() functions
     def test_create_consumptions(self):
         time_now = self.time_now

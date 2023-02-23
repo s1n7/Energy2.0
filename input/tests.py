@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from rest_framework.test import APIClient
 from input.views import InputHandler
 from decimal import Decimal
+from pprint import pprint
 
 producer_dump = {"name": "T", "street": "t", "zip_code": "t", "city": "2", "peak_power": 1}
 consumer_dump = {"name": "t", "email": "t@t.de", "phone": "0004123420", }
@@ -73,7 +74,29 @@ class InputTest(TestCase):
         # Hence, interpolated grid_reading value is 1.5 * (3/4) = 1.125
         self.assertEqual(ih._interpolate(left, right, target_time), 1.125)
 
-    ''' ---- Then test main functions ---- '''
+
+    # Test _divide_production_among_consumption function and _assign_rate_and_price_to_consumption function
+    def test_divide_production_among_consumption_assign_rate_and_price_to_consumption(self):
+        time_now = self.time_now
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
+                                                   production_meter_reading=0.2, grid_feed_in=0.05,
+                                                   grid_meter_reading=0.05, producer=Producer.objects.first())
+
+        consumer = Consumer.objects.get(id=2)
+        consumption = Consumption.objects.get(id=2)
+        new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
+                                               time=time_now + timedelta(minutes=25))
+
+        consumptions = {1:{'meter_reading':Decimal(0.3), 'consumption':Decimal(0.3), 'last_consumption':consumption,
+                        'time':time_now + timedelta(minutes=15), 'consumer':consumer, 'production':production}}
+
+        ih.producer.refresh_from_db()
+        ih._divide_production_among_consumption(consumptions)
+
+
+
+    '''Then test main functions'''
 
     '''4 tests for _check_for_new_productions() and _create_new_production()'''
 
@@ -120,7 +143,7 @@ class InputTest(TestCase):
     def test_productions_edge_order(self):
         time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())
-        
+
         new_grid_reading = Reading.objects.create(energy=Decimal(0.8), power=0, time=time_now + timedelta(minutes=39),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
@@ -146,13 +169,13 @@ class InputTest(TestCase):
         self.assertEqual(Production.objects.last().used, 0.3375)
         self.assertEqual(Production.objects.last().grid_meter_reading, 0.8625)
 
-    # (3) Edge case: if no production input for a long time (e.g. because communication module of sensor is broken and cannot deliver data) 
+    # (3) Edge case: if no production input for a long time (e.g. because communication module of sensor is broken and cannot deliver data)
     # --> spins in while loop in handle_input as long as there is no production data
     def test_productions_edge_noProduction(self):
         time_now = self.time_now
         user = User.objects.first()
         factory = APIClient(enforce_csrf_checks=False)
-        
+
         # Simulates incoming input from which readings can be created
         response = factory.post("/input/", data={
             'device_id': 123123,  # PV
@@ -195,7 +218,7 @@ class InputTest(TestCase):
         }, format='json')
         # No new production could have been created, i.e. the time is still the same as the first production
         self.assertEqual(Producer.production_set.last().time, self.time_now + timedelta(minutes=15))
-        
+
         # Imagine in the meantime several more grid data inputs have come and now finally...
         # ... the sensor could be fixed and is delivering input data again
         response = factory.post("/input/", data={
@@ -252,6 +275,17 @@ class InputTest(TestCase):
         ih.producer.refresh_from_db()
         ih._create_new_production()
         ih._create_consumptions()
+
+        self.assertEqual(Consumption.objects.last().time, datetime(day=12, month=1, year=2023, hour=10, minute=15))
+        self.assertEqual(Consumption.objects.last().consumption, round(Decimal(0.3), 4))
+        self.assertEqual(Consumption.objects.last().grid_consumption, round(Decimal(0.225), 4))
+        self.assertEqual(Consumption.objects.last().grid_price, round(Decimal(9.0), 4))
+        self.assertEqual(Consumption.objects.last().meter_reading, round(Decimal(0.3), 4))
+        self.assertEqual(Consumption.objects.last().price, round(Decimal(11.625), 4))
+        self.assertEqual(Consumption.objects.last().reduced_price, round(Decimal(2.625), 4))
+        self.assertEqual(Consumption.objects.last().saved, round(Decimal(0.375), 4))
+        self.assertEqual(Consumption.objects.last().self_consumption, round(Decimal(0.075), 4))
+
 
     '''Finally test whole input handler'''
 

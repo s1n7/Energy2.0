@@ -14,7 +14,7 @@ class InputHandler:
         Sequence:
 
         1. Create Reading from Input
-        2. Check if due to new Reading a new Production can be created
+        2. Check if due to new Reading a new Production can be created (only if Reading is from grid or producer)
             - if so create and check again until no new Production can be created
         3. Check if due to new Reading new Consumptions can be created
             - if so create and check again until no new Consumptions can be created
@@ -62,11 +62,12 @@ class InputHandler:
             self._save_input_as_reading()
         self.producer.refresh_from_db()
         # only check for new production if the new reading isnt a consumption
-        if not sensor or sensor.type != "CM":
+        if sensor.type != "CM":
+        # if not sensor or sensor.type != "CM":
             while self._check_for_new_production():
                 self._create_new_production()
                 self.producer.refresh_from_db()
-        self.producer.refresh_from_db()
+            self.producer.refresh_from_db()
         # after reading was created we now can check if new productions and/or consumptions are possible to create
         while self._check_for_new_consumption():
             self._create_consumptions()

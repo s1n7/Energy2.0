@@ -22,16 +22,16 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         return value
 
     # TODO: can probably be deleted, was only for assigning groups to users
-    # def create(self, validated_data):
-    #     # Groups können nicht direkt zugeordnet werden weil Many2Many Relationship
-    #     if 'groups' in validated_data:
-    #         user_groups = validated_data.pop('groups')
-    #     user = User(**validated_data)
-    #     user.set_password(validated_data['password'])
-    #     user.save()
-    #     # Many2Many Relationships brauchen ids deswegen vorher einmal abspeichern
-    #     if 'groups' in validated_data:
-    #         user.groups.set(user_groups)
-    #         user.save()
-    #
-    #     return user
+    def create(self, validated_data):
+        # Groups können nicht direkt zugeordnet werden weil Many2Many Relationship
+        if 'groups' in validated_data:
+            user_groups = validated_data.pop('groups')
+        user = User(**validated_data)
+        user.set_password(validated_data['password'])
+        user.save()
+        # Many2Many Relationships brauchen ids deswegen vorher einmal abspeichern
+        if 'groups' in validated_data:
+            user.groups.set(user_groups)
+            user.save()
+
+        return user

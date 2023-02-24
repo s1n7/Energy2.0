@@ -41,7 +41,7 @@ class CustomLogin(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
-        is_admin = user.is_staff
+        is_admin = int(user.is_staff)
         if is_admin:
             consumer_id = None
         else:

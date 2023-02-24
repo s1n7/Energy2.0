@@ -193,13 +193,13 @@ class InputHandler:
         # sort consumptions so that the consumer with the lowest consumption comes first
         consumptions = dict(sorted(consumptions.items(), key=lambda x: x[1]['meter_reading']))
         # production that is shared across consumers -> in the beginning its all the production used
-        available_production = self.production.used
+        available_production = Decimal(self.production.used)
         index = 0
         if available_production > 0:
             for consumption in consumptions.values():
                 remaining_consumers = len(consumptions) - index
                 # each consumer gets an equal share
-                share = available_production / remaining_consumers
+                share = Decimal(available_production / remaining_consumers)
                 if consumption['consumption'] >= share:
                     consumption['self_consumption'] = share
                     consumption['grid_consumption'] = consumption['consumption'] - share

@@ -78,22 +78,30 @@ class InputTest(TestCase):
     # Test _divide_production_among_consumption function and _assign_rate_and_price_to_consumption function
     def test_divide_production_among_consumption_assign_rate_and_price_to_consumption(self):
         time_now = self.time_now
-        ih = InputHandler(request=None, producer=Producer.objects.first())
         production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
                                                    production_meter_reading=0.2, grid_feed_in=0.05,
                                                    grid_meter_reading=0.05, producer=Producer.objects.first())
-
         consumer = Consumer.objects.get(id=2)
         consumption = Consumption.objects.get(id=2)
-        new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
-                                               time=time_now + timedelta(minutes=25))
+        rate = Rate.objects.first()
 
-        consumptions = {1:{'meter_reading':Decimal(0.3), 'consumption':Decimal(0.3), 'last_consumption':consumption,
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        ih.production=production
+
+        consumptions = {1:{'meter_reading':Decimal(0.3), 'consumption':Decimal(0.3), 'last_consumption':consumption, 
                         'time':time_now + timedelta(minutes=15), 'consumer':consumer, 'production':production}}
 
-        ih.producer.refresh_from_db()
+        # Execute the _divide_production_among_consumption function with the consumptions object
+        # The _assign_rate_and_price_to_consumption function is executed within the _divide_production_among_consumption function
         ih._divide_production_among_consumption(consumptions)
 
+        self.assertAlmostEqual(consumptions[1]['self_consumption'], Decimal('0.14999999'))
+        self.assertAlmostEqual(consumptions[1]['grid_consumption'], Decimal('0.14999999'))
+        self.assertEqual(consumptions[1]['rate'], rate)
+        self.assertAlmostEqual(consumptions[1]['reduced_price'], Decimal('5.24999999'))
+        self.assertAlmostEqual(consumptions[1]['grid_price'], Decimal('5.99999999'))
+        self.assertAlmostEqual(consumptions[1]['price'], Decimal('11.24999999'))
+        self.assertAlmostEqual(consumptions[1]['saved'], Decimal('0.74999999'))
 
 
     '''Then test main functions'''
@@ -251,11 +259,11 @@ class InputTest(TestCase):
     def test_productions_edge_noGrid(self):
         time_now = self.time_now
 
-    
     '''x tests for _check_for_new_consumption() and _create_consumptions()'''
 
+    # (1) Regular case
     # Test _check_for_new_consumption() and _create_consumptions() functions
-    def test_create_consumptions(self):
+    def test_create_consumptions_regular(self):
         time_now = self.time_now
         new_production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
                                                    production_meter_reading=0.2, grid_feed_in=0.05,
@@ -285,6 +293,23 @@ class InputTest(TestCase):
         self.assertEqual(Consumption.objects.last().reduced_price, round(Decimal(2.625), 4))
         self.assertEqual(Consumption.objects.last().saved, round(Decimal(0.375), 4))
         self.assertEqual(Consumption.objects.last().self_consumption, round(Decimal(0.075), 4))
+
+    # (2) Edge case: no consumption reading for a long time
+    # Test _check_for_new_consumption() and _create_consumptions() functions
+    def test_create_consumptions_edge(self):
+        time_now = self.time_now
+        user = User.objects.first()
+        factory = APIClient(enforce_csrf_checks=False)
+
+        response = factory.post("/input/", data={
+            'device_id': 51513,  # Gertrude
+            'source_time': self.time_now + timedelta(minutes=25),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 1,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
 
 
     '''Finally test whole input handler'''

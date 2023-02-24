@@ -154,13 +154,11 @@ class InputHandler:
             consumptions[consumer.id] = {'meter_reading': meter_reading,
                                          # consumption is the difference of the meter readings
                                          'consumption': consumption,
-                                         'last_consumption': last_consumption,
                                          'time': target_time,
                                          'consumer': consumer,
                                          'production': self.production}
         consumptions = self._divide_production_among_consumption(consumptions)
         for consumption in consumptions.values():
-            del consumption['last_consumption']
             Consumption.objects.create(**consumption)
         if self.print_mode:
             pprint(consumptions)
@@ -226,11 +224,10 @@ class InputHandler:
     def _assign_rate_and_price_to_consumption(self, consumption):
         """
         For given consumption, the suitable rate is searched and used to calculate the price
-        :param consumption:  {meter_reading, time, last_consumption, self_consumption, ...}
+        :param consumption:  {meter_reading, time, consumer, self_consumption, ...}
         :return: consumption:  {...,  price, reduced_price, saved, grid_price, rate}
         """
-        consumer = consumption['last_consumption'].consumer
-        last_consumption_time = consumption['last_consumption'].time
+        consumer = consumption['consumer']
         new_consumption_time = self.production.time
         # search for rate at new consumption time (= production time)
         # rates are filtered so the start_date and time match or are null

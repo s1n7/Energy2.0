@@ -43,5 +43,6 @@ urlpatterns = [
     path('logout/', LogoutView.as_view()),
     path('input/', input_view),
     path('output/', output_view),
+    path('setup/', setup_data_view)
 ]
 

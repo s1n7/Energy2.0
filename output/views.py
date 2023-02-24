@@ -70,7 +70,10 @@ Endpoint to get data for data display, charts etc.
         producers_total_consumption = 0
         producers_total_saved = 0
         # loop over all producers and sum their values
-        for producer in Producer.objects.all():
+        producer_set = Producer.objects.all()
+        if len(producer_set) == 0:
+            raise NotFound()
+        for producer in producer_set:
             # get all data for producer but dont aggregate all consumptions to one data set
             producers[producer.name] = get_producer_output(producer, start_date, end_date, request,
                                                            no_aggregation=True)

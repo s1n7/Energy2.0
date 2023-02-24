@@ -13,7 +13,7 @@ class Sensor(models.Model):
         CONSUMPTION_METER = 'CM', 'Consumption Meter'
         GRID_METER = 'GM', 'Grid Meter'
     # ID an der wir am Ende Sensor einer WE zuordnen können, wahrscheinlich ZählerNr/EUI oder so
-    device_id = models.IntegerField()
+    device_id = models.IntegerField(unique=True)
     type = models.CharField(
         max_length=2,
         choices=SensorTypes.choices

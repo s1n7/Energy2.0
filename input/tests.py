@@ -140,11 +140,11 @@ class InputTest(TestCase):
 
         ih._create_new_production()
         self.assertEqual(Production.objects.last().time, datetime(day=12, month=1, year=2023, hour=10, minute=46))
-        self.assertEqual(Production.objects.last().produced, 1.2)
-        self.assertEqual(Production.objects.last().production_meter_reading, 1.2)
-        self.assertEqual(Production.objects.last().grid_feed_in, 0.8625)
-        self.assertEqual(Production.objects.last().used, 0.3375)
-        self.assertEqual(Production.objects.last().grid_meter_reading, 0.8625)
+        self.assertEqual(Production.objects.last().produced, round(Decimal(1.2),4))
+        self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(1.2),4))
+        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(0.8625),4))
+        self.assertEqual(Production.objects.last().used, round(Decimal(0.3375),4))
+        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(0.8625),4))
 
     # (3) Edge case: if no production input for a long time (e.g. because communication module of sensor is broken and cannot deliver data) 
     # --> spins in while loop in handle_input as long as there is no production data
@@ -172,7 +172,7 @@ class InputTest(TestCase):
                 'Leistung_Summe_W': 0
             }
         }, format='json')
-        self.assertEqual(Producer.production_set.last().time, self.time_now + timedelta(minutes=15))
+        self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=15))
         self.assertEqual(Production.objects.last().grid_meter_reading, 0.75)
 
         response = factory.post("/input/", data={
@@ -194,7 +194,7 @@ class InputTest(TestCase):
             }
         }, format='json')
         # No new production could have been created, i.e. the time is still the same as the first production
-        self.assertEqual(Producer.production_set.last().time, self.time_now + timedelta(minutes=15))
+        self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=15))
         
         # Imagine in the meantime several more grid data inputs have come and now finally...
         # ... the sensor could be fixed and is delivering input data again
@@ -218,8 +218,8 @@ class InputTest(TestCase):
             }
         }, format='json')
         self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=391))
-        self.assertEqual(Production.objects.last().produced, 13.68)
-        self.assertEqual(Production.objects.last().production_meter_reading, 14.68)
+        self.assertEqual(Production.objects.last().produced, round(Decimal(13.68),4))
+        self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(14.68),4))
         self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(6.1371573604),4))
         self.assertEqual(Production.objects.last().used, round(Decimal(7.5428426396),4))
         self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(6.8871573604),4))

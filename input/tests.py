@@ -219,18 +219,26 @@ class InputTest(TestCase):
     # Test _check_for_new_consumption() and _create_consumptions() functions
     def test_create_consumptions_edge(self):
         time_now = self.time_now
-        user = User.objects.first()
-        factory = APIClient(enforce_csrf_checks=False)
+        new_production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
+                                                   production_meter_reading=0.2, grid_feed_in=0.05,
+                                                   grid_meter_reading=0.05, producer=Producer.objects.first())
+        new_reading = Reading.objects.create(energy=0.2, power=0, sensor=Consumer.objects.get(id=1).sensor,
+                                             time=time_now + timedelta(minutes=23))
+        ih = InputHandler(request=None, producer=Producer.objects.first())
+        self.assertEqual(ih._check_for_new_consumption(), False)
+        new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
+                                               time=time_now + timedelta(minutes=180)) #three hours later
+        self.assertEqual(ih._check_for_new_consumption(), True) # now one reading for each consumer exists, so consumption can be created
+        
+        new_production_reading = Reading.objects.create(energy=0.3, power=0, time=time_now + timedelta(minutes=185),
+                                                        sensor=Producer.objects.first().production_sensor)
+        new_grid_reading = Reading.objects.create(energy=0.1, power=0, time=time_now + timedelta(minutes=190),
+                                                  sensor=Producer.objects.first().grid_sensor)
+        ih.producer.refresh_from_db()
+        ih._create_new_production()
+        ih._create_consumptions()
 
-        response = factory.post("/input/", data={
-            'device_id': 51513,  # Gertrude
-            'source_time': self.time_now + timedelta(minutes=25),
-            'parsed': {
-                'Lieferung_Gesamt_kWh': 1,
-                'Bezug_Gesamt_kWh': 1,
-                'Leistung_Summe_W': 0
-            }
-        }, format='json')
+        pprint(vars(Consumption.objects.last()))
         
 
     '''Finally test whole input handler'''

@@ -2,7 +2,7 @@ from django.shortcuts import render
 from django.contrib.auth.models import User, Group
 from rest_framework import viewsets
 from rest_framework import permissions
-from base.serializers import UserSerializer, GroupSerializer
+from base.serializers import UserSerializer
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.authtoken.views import ObtainAuthToken
@@ -41,7 +41,7 @@ class CustomLogin(ObtainAuthToken):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
         token, created = Token.objects.get_or_create(user=user)
-        is_admin = user.is_staff
+        is_admin = int(user.is_staff)
         if is_admin:
             consumer_id = None
         else:

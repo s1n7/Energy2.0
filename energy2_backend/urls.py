@@ -23,7 +23,6 @@ from base.contracts.views import ContractView, RateView
 from base.data.views import *
 from base.views import *
 from base.sensors.views import *
-from rest_framework.authtoken.views import obtain_auth_token
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -44,5 +43,6 @@ urlpatterns = [
     path('logout/', LogoutView.as_view()),
     path('input/', input_view),
     path('output/', output_view),
+    path('setup/', setup_data_view)
 ]
 

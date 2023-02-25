@@ -299,10 +299,11 @@ class InputTest(TestCase):
         # is created for each point in time where a production reading is available (see while loop in handle_input()
         # and filter conditions in _create_new_production(), i.e. lines 265-268)
         self.assertEqual(len(Production.objects.filter(time__gt=self.time_now + timedelta(minutes=15))),3)
+        self.assertEqual(Production.objects.filter(time=self.time_now + timedelta(minutes=272)).first().produced, round(Decimal(7.8848),4))
 
         #Checks data for last production
         self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=329))
-        self.assertEqual(Production.objects.last().produced, round(Decimal(1.5978),4))
+        self.assertEqual(Production.objects.last().produced, round(Decimal(1.5978),4)) # 12.3456-10.7478
         self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(12.3456),4))
         self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(1.5978),4)) # see else case in line 301 in input_handlers
         self.assertEqual(Production.objects.last().used, 0) # because all produced energy was fed back into the grid

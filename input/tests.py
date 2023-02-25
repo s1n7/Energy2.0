@@ -266,7 +266,7 @@ class InputTest(TestCase):
         
         response = factory.post("/input/", data={
             'device_id': 123123,  # PV
-            'source_time': self.time_now + timedelta(minutes=272),
+            'source_time': self.time_now + timedelta(minutes=272), # 14:32
             'parsed': {
                 'Lieferung_Gesamt_kWh': 10.7478,
                 'Bezug_Gesamt_kWh': 0,
@@ -294,12 +294,19 @@ class InputTest(TestCase):
                 'Leistung_Summe_W': 0
             }
         }, format='json')
+        
+        # In order to distribute production data more precisely and not over a too long time span, a production 
+        # is created for each point in time where a production reading is available (see while loop in handle_input()
+        # and filter conditions in _create_new_production(), i.e. lines 265-268)
+        self.assertEqual(len(Production.objects.filter(time__gt=self.time_now + timedelta(minutes=15))),3)
+
+        #Checks data for last production
         self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=329))
-        self.assertEqual(Production.objects.last().produced, round(Decimal(11.3456),4))
+        self.assertEqual(Production.objects.last().produced, round(Decimal(1.5978),4))
         self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(12.3456),4))
-        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(11.3456),4)) # see else case in line 301 in input_handlers
+        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(1.5978),4)) # see else case in line 301 in input_handlers
         self.assertEqual(Production.objects.last().used, 0) # because all produced energy was fed back into the grid
-        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(12.0956),4))
+        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(11.3516025751),10))
 
     
     '''x tests for _check_for_new_consumption() and _create_consumptions()'''

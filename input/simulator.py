@@ -22,6 +22,10 @@ def sum_to_n(n):
     return [values[i + 1] - values[i] for i in range(n)]
 
 
+def get_array_input():
+    return eval(input("Array mit 24 Einträgen eingeben"))
+
+
 class P2PEnergySimulator:
     HOUR_FACTOR = [0, 0, 0, 0, 0, 0.5, 0.75, 1, 1.5, 2, 2, 2.5, 2.75, 2.75, 2.5, 2, 1.5, 1, 1, .25, 0, 0, 0, 0]
     MONTH_FACTOR = [0.395, 0.503, 0.863, 1.391, 1.547, 1.607, 1.619, 1.379, 1.139, 0.863, 0.407, 0.287]
@@ -31,32 +35,46 @@ class P2PEnergySimulator:
     session = make_request.session()
     daily_production_boost = {'date': "", 'boost': 0}
 
-    def __init__(self, producer_id, start_datetime=None, network_requests=True):
+    def __init__(self, producer_id, start_datetime=None, network_requests=True, with_offset=False,
+                 custom_consumption_pattern=False):
         """
         Create a Simulator Instance
         :param producer_id: set the producer which you want to simulate the production and consumption of its consumers
         :param start_datetime: datetime from which the simulation starts
+        :param network_requests: set whether simulated requests should be send over network or handled by intern
+        InputHandler instance
+        :param with_offset: set whether requests should come at different times or all at the same (!!! with offset it
+        can happen that used production is more than self_consumptions of consumers)
+        :param custom_consumption_pattern: set whether consumption pattern should be auto generated or set manually
         """
         producer = Producer.objects.get(id=producer_id)
         if start_datetime:
             self.timestamp = start_datetime
         else:
-            self.timestamp = Sensor.objects.get(producer__id=producer_id).reading_set.last().time
+            try:
+                self.timestamp = Sensor.objects.get(producer__id=producer_id).reading_set.last().time
+            except:
+                self.timestamp = producer.production_set.last().time + timedelta(minutes=15)
         consumers = []
+        max_offset = 15
+        if not with_offset:
+            max_offset = 0
+        consumption_pattern = lambda: sum_to_n(24)
+        if custom_consumption_pattern:
+            consumption_pattern = lambda: get_array_input()
         for consumer in producer.consumer_set.all():
             consumers.append({'id': consumer.id, 'mean_consumption': float(
                 input(f"Jahresdurchscnittsverbrauch von Wohnung:{consumer.name}")),
-                              'offset': timedelta(minutes=random.uniform(0, 15)),
-                              'hour_factors': sum_to_n(24)})
+                              'offset': timedelta(minutes=random.uniform(0, max_offset)),
+                              'hour_factors': consumption_pattern()})
         self.consumers = consumers
         self.producer = {'id': producer_id,
                          'mean_production': float(input(f"Jahresdurchscnittsproduktion von PV:{producer.name}")),
-                         'production_offset': timedelta(minutes=random.uniform(0, 15)),
-                         'grid_offset': timedelta(minutes=random.uniform(0, 15))}
+                         'production_offset': timedelta(minutes=random.uniform(0, max_offset)),
+                         'grid_offset': timedelta(minutes=random.uniform(0, max_offset))}
         self.requests = []
         self.network_requests = network_requests
-        if not network_requests:
-            self.ih = InputHandler()
+        self.ih = InputHandler()
 
     @staticmethod
     def simulate_all():
@@ -171,11 +189,15 @@ class P2PEnergySimulator:
         :param consumption: consumed in this iteration
         :return: fed in, in this iteration
         """
-        minimum = 0
-        if consumption < production:
-            minimum = production - consumption
-        res = Decimal(random.uniform(minimum, production))
-        return res
+        if production > 0:
+            minimum = 0
+            maximum = production
+            if consumption < production:
+                minimum = production - consumption
+            res = Decimal(random.uniform(minimum, maximum))
+            return res
+        else:
+            return 0
 
     def _simulate_consumption(self, consumer):
         timestamp = self.timestamp
@@ -231,11 +253,22 @@ class P2PEnergySimulator:
         self.requests = []
 
     @staticmethod
-    def _delete_data():
-        Reading.objects.all().delete()
-        Consumption.objects.all().delete()
-        Production.objects.all().delete()
-        for p in Producer.objects.all():
+    def _delete_data(producer_id=False):
+        if not producer_id:
+            reading_set = Reading.objects.all()
+            consumption_set = Consumption.objects.all()
+            production_set = Production.objects.all()
+            producer_set = Producer.objects.all()
+            consumer_set = Consumer.objects.all()
+        else:
+            pass
+        reading_set.objects.all().delete()
+        consumption_set.objects.all().delete()
+        production_set.objects.all().delete()
+        for p in producer_set:
             p.last_grid_reading = None
             p.last_production_reading = None
             p.save()
+        for c in consumer_set:
+            c.last_reading = None
+            c.save()

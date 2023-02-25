@@ -14,7 +14,7 @@ class InputHandler:
         Sequence:
 
         1. Create Reading from Input
-        2. Check if due to new Reading a new Production can be created
+        2. Check if due to new Reading a new Production can be created (only if Reading is from grid or producer)
             - if so create and check again until no new Production can be created
         3. Check if due to new Reading new Consumptions can be created
             - if so create and check again until no new Consumptions can be created
@@ -62,11 +62,12 @@ class InputHandler:
             self._save_input_as_reading()
         self.producer.refresh_from_db()
         # only check for new production if the new reading isnt a consumption
-        if not sensor or sensor.type != "CM":
+        if sensor.type != "CM":
+        # if not sensor or sensor.type != "CM":
             while self._check_for_new_production():
                 self._create_new_production()
                 self.producer.refresh_from_db()
-        self.producer.refresh_from_db()
+            self.producer.refresh_from_db()
         # after reading was created we now can check if new productions and/or consumptions are possible to create
         while self._check_for_new_consumption():
             self._create_consumptions()
@@ -153,13 +154,11 @@ class InputHandler:
             consumptions[consumer.id] = {'meter_reading': meter_reading,
                                          # consumption is the difference of the meter readings
                                          'consumption': consumption,
-                                         'last_consumption': last_consumption,
                                          'time': target_time,
                                          'consumer': consumer,
                                          'production': self.production}
         consumptions = self._divide_production_among_consumption(consumptions)
         for consumption in consumptions.values():
-            del consumption['last_consumption']
             Consumption.objects.create(**consumption)
         if self.print_mode:
             pprint(consumptions)
@@ -194,13 +193,13 @@ class InputHandler:
         # sort consumptions so that the consumer with the lowest consumption comes first
         consumptions = dict(sorted(consumptions.items(), key=lambda x: x[1]['meter_reading']))
         # production that is shared across consumers -> in the beginning its all the production used
-        available_production = self.production.used
+        available_production = Decimal(self.production.used)
         index = 0
         if available_production > 0:
             for consumption in consumptions.values():
                 remaining_consumers = len(consumptions) - index
                 # each consumer gets an equal share
-                share = available_production / remaining_consumers
+                share = Decimal(available_production / remaining_consumers)
                 if consumption['consumption'] >= share:
                     consumption['self_consumption'] = share
                     consumption['grid_consumption'] = consumption['consumption'] - share
@@ -225,11 +224,10 @@ class InputHandler:
     def _assign_rate_and_price_to_consumption(self, consumption):
         """
         For given consumption, the suitable rate is searched and used to calculate the price
-        :param consumption:  {meter_reading, time, last_consumption, self_consumption, ...}
+        :param consumption:  {meter_reading, time, consumer, self_consumption, ...}
         :return: consumption:  {...,  price, reduced_price, saved, grid_price, rate}
         """
-        consumer = consumption['last_consumption'].consumer
-        last_consumption_time = consumption['last_consumption'].time
+        consumer = consumption['consumer']
         new_consumption_time = self.production.time
         # search for rate at new consumption time (= production time)
         # rates are filtered so the start_date and time match or are null

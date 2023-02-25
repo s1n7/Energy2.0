@@ -40,6 +40,10 @@ INSTALLED_APPS = [
     'rest_framework',
     'base',
     'base.sensors',
+    'base.data',
+    'base.contracts',
+    'input',
+    'output',
     'rest_framework.authtoken'
 ]
 

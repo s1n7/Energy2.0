@@ -52,11 +52,15 @@ Endpoint to get data for data display, charts etc.
         # for all consumers do the same (maybe only the prices)
         producer = get_object_or_404(Producer, pk=producer_id)
         data = get_producer_output(producer, start_date, end_date, request)
+        if data is False:
+            return Response(status=204)
         print(datetime.now() - st)
         return Response(data, status=200)
     elif consumer_id:
         consumer = get_object_or_404(Consumer, pk=consumer_id)
         data = get_consumer_output(consumer, start_date, end_date, request)
+        if data is False:
+            return Response(status=204)
         data.update(get_producer_output(consumer.producer, start_date, end_date, request, True))
         print(datetime.now() - st)
         return Response(data)
@@ -75,8 +79,10 @@ Endpoint to get data for data display, charts etc.
             raise NotFound()
         for producer in producer_set:
             # get all data for producer but dont aggregate all consumptions to one data set
-            producers[producer.name] = get_producer_output(producer, start_date, end_date, request,
-                                                           no_aggregation=True)
+            producer_output = get_producer_output(producer, start_date, end_date, request, no_aggregation=True)
+            if producer_output is False:
+                return Response(status=204)
+            producers[producer.name] = producer_output
             producers_total_revenue += producers[producer.name]['consumers_total_revenue']
             producers_total_production += producers[producer.name]['total_production']
             producers_total_used += producers[producer.name]['total_used']
@@ -110,7 +116,7 @@ def get_producer_output(producer, start_date, end_date, request, only_production
     """
     productions = Production.objects.filter(producer__id=producer.id, time__gte=start_date, time__lte=end_date)
     if len(productions) == 0:
-        raise NotFound()
+        return False
     serialized_productions = ProductionSerializer(productions, many=True, context={'request': request}).data
     data = {'productions': serialized_productions}
     if not only_productions:
@@ -125,7 +131,8 @@ def get_producer_output(producer, start_date, end_date, request, only_production
             # if only one is in timeframe -> difference wont work
             total_production = productions.first().produced
             total_used = productions.first().used
-        aggregated_consumer_data = aggregate_consumer_outputs(producer.consumer_set.all(), start_date, end_date, request,
+        aggregated_consumer_data = aggregate_consumer_outputs(producer.consumer_set.all(), start_date, end_date,
+                                                              request,
                                                               no_aggregation)
         data.update(aggregated_consumer_data)
         data.update({
@@ -138,7 +145,7 @@ def get_producer_output(producer, start_date, end_date, request, only_production
 def get_consumer_output(consumer, start_date, end_date, request):
     consumptions = Consumption.objects.filter(consumer__id=consumer.id, time__gte=start_date, time__lte=end_date)
     if len(consumptions) == 0:
-        raise NotFound()
+        return False
     if len(consumptions) > 1:
         total_consumption = consumptions.last().meter_reading - consumptions.first().meter_reading
     else:

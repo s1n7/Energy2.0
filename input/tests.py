@@ -251,13 +251,86 @@ class InputTest(TestCase):
         self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=391))
         self.assertEqual(Production.objects.last().produced, round(Decimal(13.68),4))
         self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(14.68),4))
-        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(6.1371573604),4))
-        self.assertEqual(Production.objects.last().used, round(Decimal(7.5428426396),4))
-        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(6.8871573604),4))
+        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(6.1410026385),10))
+        self.assertEqual(Production.objects.last().used, round(Decimal(7.5389973615),10))
+        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(6.8910026385),10))
 
-    # (4) Edge case: if no grid input for a long time
+    # (4) Edge case: if no grid input for a long time --< spins in while loop in handle_input as long as there is no production data
     def test_productions_edge_noGrid(self):
         time_now = self.time_now
+        user = User.objects.first()
+        factory = APIClient(enforce_csrf_checks=False)
+
+        # Simulates regular incoming input from which readings can be created
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=15),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=20),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=15))
+        self.assertEqual(Production.objects.last().grid_meter_reading, 0.75)
+
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=102),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 2.863,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        # No new production could have been created, i.e. the time is still the same as the first production
+        self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=15))
+
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=272),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 10.7478,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+
+        # Imagine in the meantime several more production data inputs have come...
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=329), # 15:29
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 12.3456,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        #  ... and now finally the grid sensor is delivering input data again!
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=335), # 15:35
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 12.4001,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertEqual(Production.objects.last().time, self.time_now + timedelta(minutes=329))
+        self.assertEqual(Production.objects.last().produced, round(Decimal(11.3456),4))
+        self.assertEqual(Production.objects.last().production_meter_reading, round(Decimal(12.3456),4))
+        self.assertEqual(Production.objects.last().grid_feed_in, round(Decimal(11.3456),4)) # see else case in line 301 in input_handlers
+        self.assertEqual(Production.objects.last().used, 0) # because all produced energy was fed back into the grid
+        self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(12.0956),4))
 
     '''x tests for _check_for_new_consumption() and _create_consumptions()'''
 

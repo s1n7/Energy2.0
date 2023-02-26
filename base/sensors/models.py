@@ -32,6 +32,7 @@ class Producer(models.Model):
     grid_sensor = models.OneToOneField(Sensor, on_delete=models.RESTRICT, related_name="producer_grid")
     last_production_reading = models.DateTimeField(null=True)
     last_grid_reading = models.DateTimeField(null=True)
+    production_overflow = models.DecimalField(max_digits=13, decimal_places=3, default=0)
 
 
 class Consumer(models.Model):

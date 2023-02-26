@@ -193,26 +193,28 @@ class InputHandler:
         # sort consumptions so that the consumer with the lowest consumption comes first
         consumptions = dict(sorted(consumptions.items(), key=lambda x: x[1]['meter_reading']))
         # production that is shared across consumers -> in the beginning its all the production used
-        available_production = Decimal(self.production.used)
+        overflow = self.producer.production_overflow
+        # add production that was not divided earlier to the available production
+        available_production = Decimal(self.production.used) + overflow
         index = 0
         if available_production > 0:
             for consumption in consumptions.values():
                 remaining_consumers = len(consumptions) - index
                 # each consumer gets an equal share
                 share = Decimal(available_production / remaining_consumers)
-                if consumption['consumption'] >= share:
+                if consumption['consumption'] > share:
                     consumption['self_consumption'] = share
                     consumption['grid_consumption'] = consumption['consumption'] - share
                 else:  # if one consumer consumed less than the share -> every other consumer gets a bigger share
                     share = consumption['consumption']
                     consumption['self_consumption'] = consumption['consumption']
                     consumption['grid_consumption'] = 0
-                    share -= consumption['consumption']
                 available_production -= share
                 self._assign_rate_and_price_to_consumption(consumption)
                 index += 1
-            if available_production > 0:
-                print("Achtung: Produktion konnte nicht aufgeteilt werden")
+            # store not divided production for later
+            self.producer.production_overflow = available_production
+            self.producer.save()
         else:
             # if no production available than grid_consumption is all and self_consumption is 0
             for consumption in consumptions.values():

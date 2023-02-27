@@ -26,7 +26,7 @@ class InputHandler:
         self.sensor = None
         self.data = None
 
-    print_mode = False
+    print_mode = True
 
     def handle_input(self):
         # if request is none, no reading should be created but check for new possible productions or consumptions

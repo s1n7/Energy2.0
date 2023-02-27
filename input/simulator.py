@@ -262,9 +262,9 @@ class P2PEnergySimulator:
             consumer_set = Consumer.objects.all()
         else:
             pass
-        reading_set.objects.all().delete()
-        consumption_set.objects.all().delete()
-        production_set.objects.all().delete()
+        reading_set.delete()
+        consumption_set.delete()
+        production_set.delete()
         for p in producer_set:
             p.last_grid_reading = None
             p.last_production_reading = None

@@ -22,7 +22,6 @@ class InputTest(TestCase):
         # Create production and grid sensors, producer object and production object
         pm = Sensor.objects.create(device_id=123123, type="PM")
         gm = Sensor.objects.create(device_id=46454, type="GM")
-        print(Sensor.objects.all())
         prod = Producer.objects.create(**producer_dump, production_sensor=pm, grid_sensor=gm)
         prdctn = Production.objects.create(time=time_now, produced=0, used=0, production_meter_reading=0,
                                            grid_meter_reading=0, producer=prod, grid_feed_in=0)
@@ -438,3 +437,61 @@ class InputTest(TestCase):
             }
         }, format='json')
         self.assertAlmostEqual(Consumption.objects.filter(consumer__id=2).last().meter_reading, Decimal(0.6))
+
+    def test_ppt_network_2(self):
+        Consumer.objects.get(id=2).delete()
+        user = User.objects.first()
+        factory = APIClient(enforce_csrf_checks=False)
+        # factory.force_login(user=user)
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=15),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 23142,  # Max
+            'source_time': self.time_now + timedelta(minutes=30),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 0,
+                'Bezug_Gesamt_kWh': 0.25,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=45),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 0.5,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        pprint(Production.objects.last().__dict__)
+        pprint(Consumption.objects.last().__dict__)
+        pprint(Production.objects.last().__dict__)
+        pprint(Producer.objects.first().production_overflow)
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=44),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 23142,  # Max
+            'source_time': self.time_now + timedelta(minutes=60),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 0,
+                'Bezug_Gesamt_kWh': 0.6,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        pprint(Consumption.objects.last().__dict__)
+        pprint(Production.objects.last().__dict__)
+        pprint(Producer.objects.first().production_overflow)

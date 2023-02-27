@@ -438,7 +438,7 @@ class InputTest(TestCase):
         }, format='json')
         self.assertAlmostEqual(Consumption.objects.filter(consumer__id=2).last().meter_reading, Decimal(0.6))
 
-    def test_ppt_network_2(self):
+    def test_more_used_than_consumed(self):
         Consumer.objects.get(id=2).delete()
         user = User.objects.first()
         factory = APIClient(enforce_csrf_checks=False)

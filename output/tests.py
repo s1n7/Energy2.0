@@ -163,7 +163,7 @@ class OutputTest(TestCase):
                                                           saved=Decimal(4), production=new_production3, consumer=con5)
 
     # Test output when neither producer_id nor consumer_id is given, i.e. test aggregated production & consumption over all producers & consumers
-    # Ref.: line 63 in output/views.py
+    # Ref.: line 65 in output/views.py
     def test_all_productions(self):
         print(Production.objects.all())
         user = User.objects.filter(id=6).first()  # admin
@@ -179,6 +179,7 @@ class OutputTest(TestCase):
         self.assertAlmostEqual(response.data['producers_total_saved'], Decimal(15.25))
 
     # Test output when only producer_id is given, i.e. test _get_productions_and_aggregations() function
+    # Ref.: line 45 in output/views.py
     def test_production(self):
         user = User.objects.filter(id=6).first()  # admin
         c = APIClient(enforce_csrf_checks=False)
@@ -194,6 +195,7 @@ class OutputTest(TestCase):
 
 
     # Test output when only consumer_id is given, i.e. test the consumer output
+    # Ref.: line 57 in output/views.py
     def test_consumption(self):
         user = User.objects.filter(id=6).first()  # admin
         c = APIClient(enforce_csrf_checks=False)

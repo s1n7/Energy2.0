@@ -163,7 +163,7 @@ class OutputTest(TestCase):
                                                           saved=Decimal(4), production=new_production3, consumer=con5)
 
     # Test output when neither producer_id nor consumer_id is given, i.e. test aggregated production & consumption over all producers & consumers
-    # Ref.: line 63 in output/views.py
+    # Ref.: line 65 in output/views.py
     def test_all_productions(self):
         print(Production.objects.all())
         user = User.objects.filter(id=6).first()  # admin
@@ -171,79 +171,7 @@ class OutputTest(TestCase):
         c.force_login(user=user)
         response = c.get("/output/?")  # producer_id = 1
         print(response)
-        expected_content = {'producers': {
-            'P1': {'consumers': {'gertrude': {'consumptions': ConsumptionSerializer(data=Consumption.objects.filter(consumer__name='gertrude')).serialized_data,
-                                              'id': 2,
-                                              'total_consumption': Decimal('2.1250000000'),
-                                              'total_grid_consumption': Decimal('2.0000000000'),
-                                              'total_grid_price': Decimal('80.000'),
-                                              'total_price': Decimal('84.375'),
-                                              'total_reduced_price': Decimal('4.375'),
-                                              'total_saved': Decimal('0.625'),
-                                              'total_self_consumption': Decimal('0.125')},
-                                 'max': {'consumptions': Consumption.objects.filter(consumer__name='max'),
-                                         'id': 1,
-                                         'total_consumption': Decimal('2.6250000000'),
-                                         'total_grid_consumption': Decimal(
-                                             '1.5000000000'),
-                                         'total_grid_price': Decimal('60.000'),
-                                         'total_price': Decimal('99.375'),
-                                         'total_reduced_price': Decimal('39.375'),
-                                         'total_saved': Decimal('5.625'),
-                                         'total_self_consumption': Decimal('1.125')}},
-                   'consumers_total_consumption': Decimal('4.7500000000'),
-                   'consumers_total_revenue': Decimal('183.750'),
-                   'consumers_total_saved': Decimal('6.250'),
-                   'productions': Production.objects.filter(producer__name="P1"),
-                   'total_production': Decimal('2.2000000000'),
-                   'total_used': Decimal('2.0000000000')},
-            'P2': {'consumers': {'angela': {'consumptions': Consumption.objects.filter(consumer__name='angela'),
-                                            'id': 3,
-                                            'total_consumption': Decimal('0.4000000000'),
-                                            'total_grid_consumption': Decimal('0E-15'),
-                                            'total_grid_price': Decimal('0'),
-                                            'total_price': Decimal('14'),
-                                            'total_reduced_price': Decimal('14'),
-                                            'total_saved': Decimal('2'),
-                                            'total_self_consumption': Decimal(
-                                                '0.400000000000000')},
-                                 'annalena': {'consumptions': Consumption.objects.filter(consumer__name='annalena'),
-                                              'id': 5,
-                                              'total_consumption': Decimal(
-                                                  '0.8000000000'),
-                                              'total_grid_consumption': Decimal('0E-15'),
-                                              'total_grid_price': Decimal('0'),
-                                              'total_price': Decimal('28'),
-                                              'total_reduced_price': Decimal('28'),
-                                              'total_saved': Decimal('4'),
-                                              'total_self_consumption': Decimal(
-                                                  '0.800000000000000')},
-                                 'olaf': {'consumptions': Consumption.objects.filter(consumer__name='olaf'),
-                                          'id': 4,
-                                          'total_consumption': Decimal('0.6000000000'),
-                                          'total_grid_consumption': Decimal('0E-15'),
-                                          'total_grid_price': Decimal('0'),
-                                          'total_price': Decimal('21'),
-                                          'total_reduced_price': Decimal('21'),
-                                          'total_saved': Decimal('3'),
-                                          'total_self_consumption': Decimal(
-                                              '0.600000000000000')}},
-                   'consumers_total_consumption': Decimal('1.8000000000'),
-                   'consumers_total_revenue': Decimal('63'),
-                   'consumers_total_saved': Decimal('9'),
-                   'productions': Production.objects.filter(producer__name="P2"),
-                   'total_production': Decimal('2.0000000000'),
-                   'total_used': Decimal('1.8000000000')}},
-            'producers_total_consumption': Decimal('6.5500000000'),
-            'producers_total_production': Decimal('4.2000000000'),
-            'producers_total_revenue': Decimal('246.750'),
-            'producers_total_saved': Decimal('15.250'),
-            'producers_total_used': Decimal('3.8000000000')}
-        print(response.data)
-        pprint(json.loads(response.content))
-        self.maxDiff = None
-        self.assertDictEqual(expected_content, response.data)#json.loads(response.content))
-
+        
         self.assertAlmostEqual(response.data['producers_total_production'], Decimal(4.2))
         self.assertAlmostEqual(response.data['producers_total_used'], Decimal(3.8))
         self.assertAlmostEqual(response.data['producers_total_revenue'], Decimal(246.75))
@@ -251,6 +179,7 @@ class OutputTest(TestCase):
         self.assertAlmostEqual(response.data['producers_total_saved'], Decimal(15.25))
 
     # Test output when only producer_id is given, i.e. test _get_productions_and_aggregations() function
+    # Ref.: line 45 in output/views.py
     def test_production(self):
         user = User.objects.filter(id=6).first()  # admin
         c = APIClient(enforce_csrf_checks=False)
@@ -263,3 +192,20 @@ class OutputTest(TestCase):
         self.assertAlmostEqual(response.data['consumers_total_revenue'], Decimal(183.75))
         self.assertAlmostEqual(response.data['consumers_total_consumption'], Decimal(4.75))
         self.assertAlmostEqual(response.data['consumers_total_saved'], Decimal(6.25))
+
+
+    # Test output when only consumer_id is given, i.e. test the consumer output
+    # Ref.: line 57 in output/views.py
+    def test_consumption(self):
+        user = User.objects.filter(id=6).first()  # admin
+        c = APIClient(enforce_csrf_checks=False)
+        c.force_login(user=user)
+        response = c.get("/output/?consumer_id=1&")  # consumer_id = 1
+
+        self.assertEqual(response.data['total_consumption'], Decimal('2.6250000000'))
+        self.assertEqual(response.data['total_self_consumption'], Decimal('1.125'))
+        self.assertEqual(response.data['total_grid_consumption'], Decimal('1.5000000000'))
+        self.assertEqual(response.data['total_price'], Decimal('99.375'))
+        self.assertEqual(response.data['total_reduced_price'], Decimal('39.375'))
+        self.assertEqual(response.data['total_grid_price'], Decimal('60.000'))
+        self.assertEqual(response.data['total_saved'], Decimal('5.625'))

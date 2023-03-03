@@ -3,7 +3,7 @@
 ## Installation und Quick-Start
 
 1. Installieren von `python` und `pip`
-2. Empfohlen: Virtuelle Enviroment erstellen
+2. Empfohlen: Virtuelle Enviroment erstellen und aktivieren
 3. Projekt auf Computer clonen: `git clone git@github.com:s1n7/Energy2.0.git`
 4. Alle packages installieren: `pip install -r requirements.txt`
 5. Datenbank erstellen mit `python manage.py makemigrations` und dann `python manage.py migrate`
@@ -12,6 +12,16 @@
     - Einfache User haben alle das Password (abcd1234xyz)
 7. Sie können auch einen neuen admin anlegen mit: `python manage.py createsuperuser`
 6. Server starten: `python manage.py runserver`
+
+## Daten Simulieren
+
+Hier wird beipielhaft gezeigt, wie Sie die mitgelieferten Daten (siehe _loaddata_ in Installationsanleitung) bis zum aktuellen Zeitpunkt weiter simulieren. Falls Sie einen neu angelegten Producer simulieren wollen, müssen Sie ggf. beim initialisiern der KLasse einen Zeitpunkt angeben. Schauen Sie dafür einfach in die Klasse rein.
+
+1. Starten Sie eine Python Konsole im Terminal: `python`
+2. Importieren die alles aus simulator.py: `from input.simulator import *`
+3. Initialisieren Sie einen Simulator: `sim = EnergySimuluator(1)`
+4. Folgen Sie der Aufforderungen im Terminal, um die Durschnittsproduktionen und Verbräuche festzulegen.
+5. Starten Sie die Simulation bis zum aktuellen Zeitpunkt: `sim.simulate_until()`
 
 ## Struktur
 
@@ -25,7 +35,7 @@ unterschiedliche Aufgaben.
 - [input]()
 - [output]()
 
-_Die ReadMe ist nicht ganz vollständig_
+_Die ReadMe ist nicht ganz vollständig und Verlinkungen teilweise nicht gesetzt_
 
 ### base
 
@@ -113,18 +123,6 @@ Ein Konsument ist genau einem Benutzer zugeordnet, damit eine Authentifizierung
 | `producer`     | `Producer.url`    |                                                                                                                                                                                                                                                          |
 | `rates`        | `Array<Rate.url>` |                                                                                                                                                                                                                                                          |
 | `last_reading` | `datetime`        | wird automatisch erstellt, wenn ein [Reading]() erstellt wird (siehe [update_last_reading](base/data/models.py)), und wird im [/input verarbeitung](input/input_handlers.py) genutzt,  um sich die Datenbankabfrage nach den jüngsten Readings zu sparen |
-
-#### base.data
-
-## Daten Simulieren
-
-Hier wird beipielhaft gezeigt, wie Sie die mitgelieferten Daten (siehe _loaddata_ in Installationsanleitung) bis zum aktuellen Zeitpunkt weiter simulieren. Falls Sie einen neu angelegten Producer simulieren wollen, müssen Sie ggf. beim initialisiern der KLasse einen Zeitpunkt angeben. Schauen Sie dafür einfach in die Klasse rein.
-
-1. Starten Sie eine Python Konsole im Terminal: `python`
-2. Importieren die alles aus simulator.py: `from input.simulator import *`
-3. Initialisieren Sie einen Simulator: `sim = EnergySimuluator(1)`
-4. Folgen Sie der Aufforderungen im Terminal, um die Durschnittsproduktionen und Verbräuche festzulegen.
-5. Starten Sie die Simulation bis zum aktuellen Zeitpunkt: `sim.simulate_until()`
 
 ## API - Endpunkte
 

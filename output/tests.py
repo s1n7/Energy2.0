@@ -165,13 +165,10 @@ class OutputTest(TestCase):
     # Test output when neither producer_id nor consumer_id is given, i.e. test aggregated production & consumption over all producers & consumers
     # Ref.: line 65 in output/views.py
     def test_all_productions(self):
-        print(Production.objects.all())
         user = User.objects.filter(id=6).first()  # admin
         c = APIClient(enforce_csrf_checks=False)
         c.force_login(user=user)
         response = c.get("/output/?")  # producer_id = 1
-        print(response)
-        
         self.assertAlmostEqual(response.data['producers_total_production'], Decimal(4.2))
         self.assertAlmostEqual(response.data['producers_total_used'], Decimal(3.8))
         self.assertAlmostEqual(response.data['producers_total_revenue'], Decimal(246.75))
@@ -185,7 +182,6 @@ class OutputTest(TestCase):
         c = APIClient(enforce_csrf_checks=False)
         c.force_login(user=user)
         response = c.get("/output/?producer_id=1&")  # producer_id = 1
-        print(response.data)
 
         self.assertAlmostEqual(response.data['total_production'], Decimal(2.2))
         self.assertAlmostEqual(response.data['total_used'], 2)

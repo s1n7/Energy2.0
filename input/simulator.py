@@ -26,11 +26,11 @@ def get_array_input():
     return eval(input("Array mit 24 Einträgen eingeben"))
 
 
-class P2PEnergySimulator:
+class EnergySimulator:
     HOUR_FACTOR = [0, 0, 0, 0, 0, 0.5, 0.75, 1, 1.5, 2, 2, 2.5, 2.75, 2.75, 2.5, 2, 1.5, 1, 1, .25, 0, 0, 0, 0]
     MONTH_FACTOR = [0.395, 0.503, 0.863, 1.391, 1.547, 1.607, 1.619, 1.379, 1.139, 0.863, 0.407, 0.287]
-    CONS_HOUR_FACTOR = [1, 0.75, 0.5, 0.25, 0.25, 0.5, 1, 1, 1.5, 1.25, 1, 0.75, 0.75, 0.75, 0.75, 0.75, 1, 1.25, 1.5,
-                        1.5, 1.75, 1.75, 1.5, 1]
+    # CONS_HOUR_FACTOR = [1, 0.75, 0.5, 0.25, 0.25, 0.5, 1, 1, 1.5, 1.25, 1, 0.75, 0.75, 0.75, 0.75, 0.75, 1, 1.25, 1.5,
+    #                     1.5, 1.75, 1.75, 1.5, 1]
     make_request.packages.urllib3.util.connection.HAS_IPV6 = False
     session = make_request.session()
     daily_production_boost = {'date': "", 'boost': 0}
@@ -43,8 +43,7 @@ class P2PEnergySimulator:
         :param start_datetime: datetime from which the simulation starts
         :param network_requests: set whether simulated requests should be send over network or handled by intern
         InputHandler instance
-        :param with_offset: set whether requests should come at different times or all at the same (!!! with offset it
-        can happen that used production is more than self_consumptions of consumers)
+        :param with_offset: set whether requests should come at different times or all at the same
         :param custom_consumption_pattern: set whether consumption pattern should be auto generated or set manually
         """
         producer = Producer.objects.get(id=producer_id)
@@ -81,12 +80,12 @@ class P2PEnergySimulator:
         producers = Producer.objects.all()
         factories = []
         for producer in producers:
-            sim = P2PEnergySimulator(producer.id)
+            sim = EnergySimulator(producer.id)
             sim.simulate_until(datetime.now())
 
     def next(self):
         """
-        Call to simulate the next 15 minutes and send all requests out
+        simulate the next 15 minutes and send all requests out
         :return:
         """
         producer = Producer.objects.get(id=self.producer['id'])
@@ -112,8 +111,8 @@ class P2PEnergySimulator:
     def simulate_until(self, end_date=None):
         """
         Simulates Input until the given end_date.
-        !!! ~2min per simulated day (1min)!!!
-        :param end_date: date to which the simulation will run
+        !!! ~1-2min per simulated day!!!
+        :param end_date: date to which the simulation will run(default= until the time of funtion call)
         :return:
         """
         if not end_date:
@@ -153,7 +152,7 @@ class P2PEnergySimulator:
         # (like sunny days and rainy days), at best double the mean_production at worst 0
         hour_factor = self.HOUR_FACTOR[current_hour]
         if not daily_boost['date'] == timestamp.date():
-            if random.random() < 0.2 / (24 * 4):
+            if random.random() < 0.2 / (24 * 4): # to make possibility to 20% over all boosts of one day
                 daily_boost = {'date': timestamp.date(), 'boost': random.uniform(0, 2)}
             else:
                 daily_boost['boost'] = 0
@@ -164,7 +163,7 @@ class P2PEnergySimulator:
             # if we take the average and divide it like below we have a production we can add every 15min for a year
             # to exactly get the year average. In some hours and month more is produced than in others. That's why
             # the 15-min average is multiplied by a set factor and possibly by the boost factor above.
-            mean = self.producer['mean_production'] / 365 / 24 / 4 * self.MONTH_FACTOR[
+            mean = self.producer['mean_production'] / ( 365 * 24 * 4 ) * self.MONTH_FACTOR[
                 current_month - 1] * hour_factor
             # The outcome is then taken as the mean for a normal distribution, to make it non-deterministic
             production = random.normal(mean, mean * 0.1)

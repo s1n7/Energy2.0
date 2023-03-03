@@ -12,6 +12,9 @@ from rest_framework.response import Response
 
 # Create your views here.
 class ConsumerView(viewsets.ModelViewSet):
+    """
+    Add Query Param producer_id=:id: to the request, in order to filter only for Consumers of given Producer
+    """
     queryset = Consumer.objects.all()
     serializer_class = ConsumerSerializer
     permission_classes = [custom_permissions.UpdateAndReadOnlyOwned | permissions.IsAdminUser]

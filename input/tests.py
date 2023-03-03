@@ -56,8 +56,7 @@ class InputTest(TestCase):
         time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())
         producer = Producer.objects.first()
-        print(producer.production_set.last())
-        last_production = producer.production_set.last() # last_production.time = time_now = 10:00 
+        last_production = producer.production_set.last() # last_production.time = time_now = 10:00
 
         # Create exemplary data
         new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=15),  # 10:15
@@ -123,8 +122,6 @@ class InputTest(TestCase):
         self.assertEqual(ih._check_for_new_production(), False)
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=20),
                                                   sensor=Producer.objects.first().grid_sensor)
-        print(Producer.objects.get(id=1).last_production_reading)
-        print(Producer.objects.get(id=1).last_grid_reading)
         self.assertEqual(ih._check_for_new_production(), False) # a reading from both production and grid sensor now exists, but...
         ih.producer.refresh_from_db() # refreshing the producer with the new reading from the database is necessary
         self.assertEqual(ih._check_for_new_production(), True)
@@ -142,7 +139,6 @@ class InputTest(TestCase):
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=35),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
-        print(Reading.objects.all())
         self.assertEqual(ih._check_for_new_production(), True)
         
         ih._create_new_production()
@@ -533,10 +529,9 @@ class InputTest(TestCase):
                 'Leistung_Summe_W': 0
             }
         }, format='json')
-        pprint(Production.objects.last().__dict__)
-        pprint(Consumption.objects.last().__dict__)
-        pprint(Production.objects.last().__dict__)
-        pprint(Producer.objects.first().production_overflow)
+        self.assertAlmostEqual(Producer.objects.first().production_overflow, Decimal(0.708))
+        self.assertAlmostEqual(Production.objects.last().used, Decimal(0.83333333))
+        self.assertAlmostEqual(Consumption.objects.last().self_consumption, Decimal(0.125))
         response = factory.post("/input/", data={
             'device_id': 123123,  # PV
             'source_time': self.time_now + timedelta(minutes=44),
@@ -555,6 +550,6 @@ class InputTest(TestCase):
                 'Leistung_Summe_W': 0
             }
         }, format='json')
-        pprint(Consumption.objects.last().__dict__)
-        pprint(Production.objects.last().__dict__)
-        pprint(Producer.objects.first().production_overflow)
+        self.assertEqual(Production.objects.last().used, Decimal(0))
+        self.assertAlmostEqual(Consumption.objects.last().self_consumption, Decimal(0.3061111))
+        self.assertAlmostEqual(Producer.objects.first().production_overflow, Decimal(0.402))

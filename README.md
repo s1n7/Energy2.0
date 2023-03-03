@@ -7,6 +7,10 @@
 3. Projekt auf Computer clonen: `git clone git@github.com:s1n7/Energy2.0.git`
 4. Alle packages installieren: `pip install -r requirements.txt`
 5. Datenbank erstellen mit `python manage.py makemigrations` und dann `python manage.py migrate`
+6. Jetzt können die bereits simulierten Daten, geladen werden: `python manage.py loaddata simulateddata.json`
+    - Jetzt gibt es einen Amin (username: admin, password: 1234)
+    - Einfache User haben alle das Password (abcd1234xyz)
+7. Sie können auch einen neuen admin anlegen mit: `python manage.py createsuperuser`
 6. Server starten: `python manage.py runserver`
 
 ## Struktur
@@ -20,6 +24,8 @@ unterschiedliche Aufgaben.
     - [base.contracts]()
 - [input]()
 - [output]()
+
+_Die ReadMe ist nicht ganz vollständig_
 
 ### base
 
@@ -110,6 +116,16 @@ Ein Konsument ist genau einem Benutzer zugeordnet, damit eine Authentifizierung
 
 #### base.data
 
+## Daten Simulieren
+
+Hier wird beipielhaft gezeigt, wie Sie die mitgelieferten Daten (siehe _loaddata_ in Installationsanleitung) bis zum aktuellen Zeitpunkt weiter simulieren. Falls Sie einen neu angelegten Producer simulieren wollen, müssen Sie ggf. beim initialisiern der KLasse einen Zeitpunkt angeben. Schauen Sie dafür einfach in die Klasse rein.
+
+1. Starten Sie eine Python Konsole im Terminal: `python`
+2. Importieren die alles aus simulator.py: `from input.simulator import *`
+3. Initialisieren Sie einen Simulator: `sim = EnergySimuluator(1)`
+4. Folgen Sie der Aufforderungen im Terminal, um die Durschnittsproduktionen und Verbräuche festzulegen.
+5. Starten Sie die Simulation bis zum aktuellen Zeitpunkt: `sim.simulate_until()`
+
 ## API - Endpunkte
 
 Die Endpunkte der einzelnen Entitäten, welche oben beschrieben sind, werden hier nicht dokumentiert. Django REST
@@ -171,9 +187,9 @@ Authentifizierung erforderlich
 
 ```json
 {
-  status: 200,
-  data: {
-    message: "{username} logged out successfully"
+  "status": "200",
+  "data": {
+    "message": "{username} logged out successfully"
   }
 }
 ```
@@ -190,12 +206,12 @@ Das folgende Format ist in datahub definiert. Die verwendeten Parameter sind im 
 
 ```json
   {
-  'device_id': integer,
-  'source_time': datetime,
-  'parsed': {
-    'Bezug_Gesamt_kWh': float,
-    'Lieferung_Gesamt_kWh': float,
-    'Leistung_Summe_W': float
+  "device_id": "integer",
+  "source_time": "datetime",
+  "parsed": {
+    "Bezug_Gesamt_kWh": "float",
+    "Lieferung_Gesamt_kWh": "float",
+    "Leistung_Summe_W": "float"
   }
 }
 ```
@@ -204,7 +220,7 @@ Das folgende Format ist in datahub definiert. Die verwendeten Parameter sind im 
 
 ```json
 {
-  status: 200
+  "status": "200"
 }
 ```
 
@@ -215,8 +231,6 @@ GET /output/
 ```
 
 #### Request
-
-Das folgende Format ist in datahub definiert. Die verwendeten Parameter sind im folgendem aufgezählt.
 
 | Query Parameter | Type       | Description |
 |:----------------|:-----------|:------------|
@@ -231,36 +245,35 @@ With producer_id and consumer_id not set:
 
 ```json
 {
-  "producers_total_production": Decimal,
-  "producers_total_used": Decimal,
-  "producers_total_revenue": Decimal,
-  "producers_total_saved": Decimal,
-  "producers_total_consumption": Decimal,
+  "producers_total_production": "Decimal",
+  "producers_total_used": "Decimal",
+  "producers_total_revenue": "Decimal",
+  "producers_total_saved": "Decimal",
+  "producers_total_consumption": "Decimal",
   "producers": {
     "{producer_name}": {
-      "total_production": Decimal,
-      "total_used": Decimal,
-      "consumers_total_revenue": Decimal,
-      "consumers_total_saved": Decimal,
-      "total_consumption": Decimal,
-      "productions": Array<Production>,
+      "total_production": "Decimal",
+      "total_used": "Decimal",
+      "consumers_total_revenue": "Decimal",
+      "consumers_total_saved": "Decimal",
+      "total_consumption": "Decimal",
+      "productions": "Array<Production>",
       "consumers": {
         "{consumer_name}": {
-          "total_used": Decimal,
-          "total_price": Decimal,
-          "total_reduced_price": Decimal,
-          "total_grid_price": Decimal,
-          "total_saved": Decimal,
-          "total_consumption": Decimal,
-          "total_self_consumption": Decimal,
-          "total_grid_consumption": Decimal,
-          "productions": Array<Production>,
-          "consumptions": Array<Consumption>
+          "total_used": "Decimal",
+          "total_price": "Decimal",
+          "total_reduced_price": "Decimal",
+          "total_grid_price": "Decimal",
+          "total_saved": "Decimal",
+          "total_consumption": "Decimal",
+          "total_self_consumption": "Decimal",
+          "total_grid_consumption": "Decimal",
+          "productions": "Array<Production>",
+          "consumptions": "Array<Consumption>"
         }
       }
     }
   }
-}
 }
 ```
 
@@ -268,27 +281,27 @@ With producer_id set:
 
 ```json
 {
-  "total_production": Decimal,
-  "total_used": Decimal,
-  "consumers_total_revenue": Decimal,
-  "consumers_total_saved": Decimal,
-  "consumers_total_consumption": Decimal,
-  "productions": Array<Production>,
+  "total_production": "Decimal",
+  "total_used": "Decimal",
+  "consumers_total_revenue": "Decimal",
+  "consumers_total_saved": "Decimal",
+  "consumers_total_consumption": "Decimal",
+  "productions": "Array<Production>",
   "consumers": {
     "{consumer_name}": {
-      "total_used": Decimal,
-      "total_price": Decimal,
-      "total_reduced_price": Decimal,
-      "total_grid_price": Decimal,
-      "total_saved": Decimal,
-      "total_consumption": Decimal,
-      "total_self_consumption": Decimal,
-      "total_grid_consumption": Decimal,
-      "productions": Array<Production>,
-      "consumptions": Array<Consumption>
+      "total_used": "Decimal",
+      "total_price": "Decimal",
+      "total_reduced_price": "Decimal,"
+      "total_grid_price": "Decimal",
+      "total_saved": "Decimal",
+      "total_consumption": "Decimal",
+      "total_self_consumption": "Decimal",
+      "total_grid_consumption": "Decimal",
+      "productions": "Array<Production>",
+      "consumptions": "Array<Consumption>"
     }
   },
-  "consumptions": Array<Consumption(aggregated)>
+  "consumptions": "Array<Consumption(aggregated)>"
 }
 ```
 
@@ -296,16 +309,40 @@ With consumer_id set:
 
 ```json
 {
-  "total_used": Decimal,
-  "total_price": Decimal,
-  "total_reduced_price": Decimal,
-  "total_grid_price": Decimal,
-  "total_saved": Decimal,
-  "total_consumption": Decimal,
-  "total_self_consumption": Decimal,
-  "total_grid_consumption": Decimal,
-  "productions": Array<Production>,
-  "consumptions": Array<Consumption> 
+  "total_used": "Decimal",
+  "total_price": "Decimal",
+  "total_reduced_price": "Decimal",
+  "total_grid_price": "Decimal",
+  "total_saved": "Decimal",
+  "total_consumption": "Decimal",
+  "total_self_consumption": "Decimal",
+  "total_grid_consumption": "Decimal",
+  "productions": "Array<Production>",
+  "consumptions": "Array<Consumption>" 
 }
 ```
+
+### /setup/
+
+This API endpoint creates the first Production and Consumptions for a given Producer and its Consumers, for a given time with all meter readings set to 0.
+
+```http
+POST /setup/
+```
+
+#### Request
+
+| Query Parameter | Type       | Description |
+|:----------------|:-----------|:------------|
+| `producer_id`   | `integer`  |             |
+| `timestamp`      | `datetime` | The timestamp of the data in the format `"%Y-%m-%dT%H:%M:%S"`. |
+
+#### Response
+
+| Status Code | Description |
+|-------------|-------------|
+| 200         | The request was successful. |
+| 208         | Data already exists, setup is not necessary. |
+| 400         | The request was malformed or invalid. (probably timestamp) |
+| 404         | The requested producer could not be found. |
 

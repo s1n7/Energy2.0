@@ -22,7 +22,6 @@ class InputTest(TestCase):
         # Create production and grid sensors, producer object and production object
         pm = Sensor.objects.create(device_id=123123, type="PM")
         gm = Sensor.objects.create(device_id=46454, type="GM")
-        print(Sensor.objects.all())
         prod = Producer.objects.create(**producer_dump, production_sensor=pm, grid_sensor=gm)
         prdctn = Production.objects.create(time=time_now, produced=0, used=0, production_meter_reading=0,
                                            grid_meter_reading=0, producer=prod, grid_feed_in=0)
@@ -57,8 +56,7 @@ class InputTest(TestCase):
         time_now = self.time_now
         ih = InputHandler(request=None, producer=Producer.objects.first())
         producer = Producer.objects.first()
-        print(producer.production_set.last())
-        last_production = producer.production_set.last() # last_production.time = time_now = 10:00 
+        last_production = producer.production_set.last() # last_production.time = time_now = 10:00
 
         # Create exemplary data
         new_production_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=15),  # 10:15
@@ -81,27 +79,32 @@ class InputTest(TestCase):
         production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
                                                    production_meter_reading=0.2, grid_feed_in=0.05,
                                                    grid_meter_reading=0.05, producer=Producer.objects.first())
-        consumer = Consumer.objects.get(id=2)
-        consumption = Consumption.objects.get(id=2)
+        consumer1 = Consumer.objects.get(id=1)
+        consumer2 = Consumer.objects.get(id=2)
         rate = Rate.objects.first()
 
         ih = InputHandler(request=None, producer=Producer.objects.first())
         ih.production=production
 
-        consumptions = {1:{'meter_reading':Decimal(0.3), 'consumption':Decimal(0.3), 'last_consumption':consumption,
-                        'time':time_now + timedelta(minutes=15), 'consumer':consumer, 'production':production}}
+        # Create the consumptions object
+        consumptions = {1:{'meter_reading': Decimal(0.13), 'consumption': Decimal(0.13),
+                        'time':time_now + timedelta(minutes=15), 'consumer':consumer1, 'production':production}, 
+                        2:{'meter_reading': Decimal(0.3), 'consumption': Decimal(0.3),
+                        'time':time_now + timedelta(minutes=15), 'consumer':consumer2, 'production':production}}
 
         # Execute the _divide_production_among_consumption function with the consumptions object
         # The _assign_rate_and_price_to_consumption function is executed within the _divide_production_among_consumption function
+        # That's why the _assign_rate_and_price_to_consumption function does not have to be called additionally
         ih._divide_production_among_consumption(consumptions)
 
-        self.assertAlmostEqual(consumptions[1]['self_consumption'], Decimal('0.14999999'))
-        self.assertAlmostEqual(consumptions[1]['grid_consumption'], Decimal('0.14999999'))
-        self.assertEqual(consumptions[1]['rate'], rate)
-        self.assertAlmostEqual(consumptions[1]['reduced_price'], Decimal('5.24999999'))
-        self.assertAlmostEqual(consumptions[1]['grid_price'], Decimal('5.99999999'))
-        self.assertAlmostEqual(consumptions[1]['price'], Decimal('11.24999999'))
-        self.assertAlmostEqual(consumptions[1]['saved'], Decimal('0.74999999'))
+        # Check whether the production division and the rate and price assigning worked correctly
+        self.assertAlmostEqual(consumptions[2]['self_consumption'], Decimal('0.074999999'))
+        self.assertAlmostEqual(consumptions[2]['grid_consumption'], Decimal('0.224999999'))
+        self.assertEqual(consumptions[2]['rate'], rate)
+        self.assertAlmostEqual(consumptions[2]['reduced_price'], Decimal('2.624999999'))
+        self.assertAlmostEqual(consumptions[2]['grid_price'], Decimal('8.99999999'))
+        self.assertAlmostEqual(consumptions[2]['price'], Decimal('11.624999999'))
+        self.assertAlmostEqual(consumptions[2]['saved'], Decimal('0.374999999'))
 
 
     '''Then test main functions'''
@@ -119,8 +122,6 @@ class InputTest(TestCase):
         self.assertEqual(ih._check_for_new_production(), False)
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=20),
                                                   sensor=Producer.objects.first().grid_sensor)
-        print(Producer.objects.get(id=1).last_production_reading)
-        print(Producer.objects.get(id=1).last_grid_reading)
         self.assertEqual(ih._check_for_new_production(), False) # a reading from both production and grid sensor now exists, but...
         ih.producer.refresh_from_db() # refreshing the producer with the new reading from the database is necessary
         self.assertEqual(ih._check_for_new_production(), True)
@@ -138,7 +139,6 @@ class InputTest(TestCase):
         new_grid_reading = Reading.objects.create(energy=1, power=0, time=time_now + timedelta(minutes=35),
                                                   sensor=Producer.objects.first().grid_sensor)
         ih.producer.refresh_from_db()
-        print(Reading.objects.all())
         self.assertEqual(ih._check_for_new_production(), True)
         
         ih._create_new_production()
@@ -340,7 +340,7 @@ class InputTest(TestCase):
         self.assertEqual(Production.objects.last().used, 0) # because all produced energy was fed back into the grid
         self.assertEqual(Production.objects.last().grid_meter_reading, round(Decimal(11.3516025751),10))
 
-    '''x tests for _check_for_new_consumption() and _create_consumptions()'''
+    '''2 tests for _check_for_new_consumption() and _create_consumptions()'''
 
     # (1) Regular case
     # Test _check_for_new_consumption() and _create_consumptions() functions
@@ -349,18 +349,29 @@ class InputTest(TestCase):
         new_production = Production.objects.create(time=time_now + timedelta(minutes=15), produced=0.2, used=0.15,
                                                    production_meter_reading=0.2, grid_feed_in=0.05,
                                                    grid_meter_reading=0.05, producer=Producer.objects.first())
+        
+        # Create a reading for the first consumer
         new_reading = Reading.objects.create(energy=0.2, power=0, sensor=Consumer.objects.get(id=1).sensor,
                                              time=time_now + timedelta(minutes=23))
+        
         ih = InputHandler(request=None, producer=Producer.objects.first())
-        self.assertEqual(ih._check_for_new_consumption(), False)
+
+        # Consumption cannot be created yet because there is only a reading for the first consumer, but not for the second
+        self.assertEqual(ih._check_for_new_consumption(), False) 
+
+        # Create a reading for the second consumer
         new_reading_2 = Reading.objects.create(energy=0.5, power=0, sensor=Consumer.objects.get(id=2).sensor,
                                                time=time_now + timedelta(minutes=25))
-        self.assertEqual(ih._check_for_new_consumption(), True) # now one reading for each consumer exists, so consumption can be created
         
+        # Now one reading for each consumer exists, so consumption can be created
+        self.assertEqual(ih._check_for_new_consumption(), True) 
+        
+        # Create production and grid reading
         new_production_reading = Reading.objects.create(energy=0.3, power=0, time=time_now + timedelta(minutes=30),
                                                         sensor=Producer.objects.first().production_sensor)
         new_grid_reading = Reading.objects.create(energy=0.1, power=0, time=time_now + timedelta(minutes=35),
                                                   sensor=Producer.objects.first().grid_sensor)
+        
         ih.producer.refresh_from_db()
         ih._create_new_production()
         ih._create_consumptions()
@@ -378,19 +389,66 @@ class InputTest(TestCase):
     # (2) Edge case: no consumption reading for a long time
     # Test _check_for_new_consumption() and _create_consumptions() functions
     def test_create_consumptions_edge(self):
-        time_now = self.time_now
-        user = User.objects.first()
         factory = APIClient(enforce_csrf_checks=False)
 
+        # Simulates regular incoming input from which readings can be created
         response = factory.post("/input/", data={
-            'device_id': 51513,  # Gertrude
-            'source_time': self.time_now + timedelta(minutes=25),
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=15), #10:15
             'parsed': {
                 'Lieferung_Gesamt_kWh': 1,
-                'Bezug_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
                 'Leistung_Summe_W': 0
             }
         }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=20), #10:20
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+
+        # No new consumption was created yet. Thus, the time of the most current consumption is that from the second consumption 
+        # created in the setup function and the id is 2.
+        self.assertEqual(Consumption.objects.last().time, self.time_now)
+        self.assertEqual(Consumption.objects.last().id, 2)
+
+        # Create reading for first consumer
+        response = factory.post("/input/", data={
+            'device_id': 23142,  # Max
+            'source_time': self.time_now + timedelta(minutes=21), #10:21
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0.5,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+
+        # Although we have our first consumption reading, there is no new consumption yet. 
+        # Thus, the time of the most current consumption is still that from the second consumption 
+        # created in the setup function and the id is also still 2.
+        self.assertEqual(Consumption.objects.last().time, self.time_now)
+        self.assertEqual(Consumption.objects.last().id, 2)
+
+        response = factory.post("/input/", data={
+            'device_id': 51513,  # Gertrude
+            'source_time': self.time_now + timedelta(minutes=180), # 13:00, very much later
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 5,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+
+        # Now a consumption reading for each consumer exists. The consumption reading for the second consumer 
+        # came much later. Still, the time of the created consumption is 10:15, because that's the time of the
+        # production reading which is the target time. 
+        self.assertEqual(Consumption.objects.last().id, 4)
+        self.assertEqual(Consumption.objects.last().time, self.time_now + timedelta(minutes=15))
+        self.assertEqual(Consumption.objects.last().saved, Decimal('0.625'))
 
 
     '''Finally test whole input handler'''
@@ -438,3 +496,60 @@ class InputTest(TestCase):
             }
         }, format='json')
         self.assertAlmostEqual(Consumption.objects.filter(consumer__id=2).last().meter_reading, Decimal(0.6))
+
+    def test_more_used_than_consumed(self):
+        Consumer.objects.get(id=2).delete()
+        user = User.objects.first()
+        factory = APIClient(enforce_csrf_checks=False)
+        # factory.force_login(user=user)
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=15),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 23142,  # Max
+            'source_time': self.time_now + timedelta(minutes=30),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 0,
+                'Bezug_Gesamt_kWh': 0.25,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 46454,  # Grid
+            'source_time': self.time_now + timedelta(minutes=45),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 0.5,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertAlmostEqual(Producer.objects.first().production_overflow, Decimal(0.708))
+        self.assertAlmostEqual(Production.objects.last().used, Decimal(0.83333333))
+        self.assertAlmostEqual(Consumption.objects.last().self_consumption, Decimal(0.125))
+        response = factory.post("/input/", data={
+            'device_id': 123123,  # PV
+            'source_time': self.time_now + timedelta(minutes=44),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 1,
+                'Bezug_Gesamt_kWh': 0,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        response = factory.post("/input/", data={
+            'device_id': 23142,  # Max
+            'source_time': self.time_now + timedelta(minutes=60),
+            'parsed': {
+                'Lieferung_Gesamt_kWh': 0,
+                'Bezug_Gesamt_kWh': 0.6,
+                'Leistung_Summe_W': 0
+            }
+        }, format='json')
+        self.assertEqual(Production.objects.last().used, Decimal(0))
+        self.assertAlmostEqual(Consumption.objects.last().self_consumption, Decimal(0.3061111))
+        self.assertAlmostEqual(Producer.objects.first().production_overflow, Decimal(0.402))

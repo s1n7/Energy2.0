@@ -63,11 +63,9 @@ class InputHandler:
         self.producer.refresh_from_db()
         # only check for new production if the new reading isnt a consumption
         if sensor.type != "CM":
-        # if not sensor or sensor.type != "CM":
             while self._check_for_new_production():
                 self._create_new_production()
                 self.producer.refresh_from_db()
-            self.producer.refresh_from_db()
         # after reading was created we now can check if new productions and/or consumptions are possible to create
         while self._check_for_new_consumption():
             self._create_consumptions()
@@ -89,7 +87,7 @@ class InputHandler:
         elif sensor.type == "PM":
             energy = data['Lieferung_Gesamt_kWh']
         if self.print_mode:
-            print(f"New Meter: {energy}")
+            print(f"Wert: {energy}")
 
         # store reading data and create Reading object
         try:

@@ -51,7 +51,7 @@ class ContractTest(TestCase):
 
         pm = Sensor.objects.create(device_id=123123, type="PM")
         gm = Sensor.objects.create(device_id=46454, type="GM")
-        Sensor.objects.create(device_id=23142, type="CM")
+        self.cm = {'device_id': 643523, 'type': "CM"}
         Rate.objects.create(name="GoGreen", price=40, reduced_price=35, flexible= True, start_time= "00:00", start_date= "2023-02-01")
         Producer.objects.create(**producer_dump, production_sensor=pm, grid_sensor=gm)  
 
@@ -61,14 +61,14 @@ class ContractTest(TestCase):
         factory = APIClient(enforce_csrf_checks=False)
         factory.force_login(user=user)
 
-        cm = Sensor.objects.get(device_id=23142)
+        cm = self.cm
         rate = Rate.objects.get(name="GoGreen")
         prod = Producer.objects.get(name="TestProd")
 
         # Makes cm json serializable
         cm_dict = {
-            'device_id': cm.device_id,
-            'type': cm.type,
+            'device_id': cm['device_id'],
+            'type': cm['type'],
         }
         # Fetches URLs of the objects
         rate_url = reverse('rate-detail', args=[rate.pk])
@@ -82,7 +82,7 @@ class ContractTest(TestCase):
         # Check if consumer was created
         self.assertEqual(response1.status_code, 201)
         self.assertEqual(Consumer.objects.get(name="TestConsumer").user.username, "TestC")
-        self.assertEqual(Consumer.objects.get(name="TestConsumer").sensor.device_id, 23142)
+        self.assertEqual(Consumer.objects.get(name="TestConsumer").sensor.device_id, cm_dict['device_id'])
 
         # Check if contract was created
         response1 = factory.get(path="/contracts/")

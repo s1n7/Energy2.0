@@ -30,13 +30,14 @@ class ConsumptionView(viewsets.ModelViewSet):
 @api_view(['POST', ])
 @permission_classes([permissions.IsAdminUser])
 def setup_data_view(request):
+    """Create first Production and Consumptions for given producer and its Consumers, for given time with all meter
+    readings to 0"""
     if request.method == "POST":
         id = request.data.get('producer_id')
         try:
             timestamp = dt.strptime(request.data.get('timestamp'), "%Y-%m-%dT%H:%M:%S")
         except:
             raise BadRequest("Falsches Datumsformat, benutze: %Y-%m-%dT%H:%M:%S")
-        print(id, timestamp)
         if id and timestamp:
             try:
                 producer = Producer.objects.get(id=id)

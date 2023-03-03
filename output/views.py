@@ -37,7 +37,7 @@ Endpoint to get data for data display, charts etc.
     if not start_date:
         start_date = datetime.now() - timedelta(days=30)
     if not end_date:
-        end_date = datetime.now()
+        end_date = datetime.now() + timedelta(days=1)
 
     producer_id = query_params.get('producer_id')
     consumer_id = query_params.get('consumer_id')

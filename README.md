@@ -3,7 +3,7 @@
 ## Installation und Quick-Start
 
 1. Installieren von `python` und `pip`
-2. Empfohlen: Virtuelle Enviroment erstellen
+2. Empfohlen: Virtuelle Enviroment erstellen und aktivieren
 3. Projekt auf Computer clonen: `git clone git@github.com:s1n7/Energy2.0.git`
 4. Alle packages installieren: `pip install -r requirements.txt`
 5. Datenbank erstellen mit `python manage.py makemigrations` und dann `python manage.py migrate`
@@ -12,109 +12,6 @@
     - Einfache User haben alle das Password (abcd1234xyz)
 7. Sie können auch einen neuen admin anlegen mit: `python manage.py createsuperuser`
 6. Server starten: `python manage.py runserver`
-
-## Struktur
-
-Das Django Projekt ist in unterschiedliche Applikationen aufgeteilt. Diese sind zwar stark verkoppelt, aber haben
-unterschiedliche Aufgaben.
-
-- [base](#base)
-    - [base.sensors](#basesensors)
-    - [base.data]()
-    - [base.contracts]()
-- [input]()
-- [output]()
-
-_Die ReadMe ist nicht ganz vollständig_
-
-### base
-
-In _base_ werden alle Modelle und grundlegenden administrativen Serializer und Views definiert.
-In dieser Ebene wird der [UserSerializer](base/serializers.py) definiert und die [Views](base/views.py),
-also die API-Endpunkte definiert.
-
-##### User
-
-Viewset, für Dokumentation siehe [Django REST GUI](#api---endpunkte)
-
-##### CustomLogin
-
-Für API-DOkumentation siehe [hier]()  
-Diese Klasse erweitert die von Standard Klasse für Token Authentifizierung von Django, damit zusätzlich zum Token,
-die Parameter is_admin und customer_id für den einloggenden User mitgesendet werden.
-
-##### Logout
-
-Für API-DOkumentation siehe [hier]()
-
-Hier wird ganz grundlegend eine Logout Funktion für Token-Authentifizierung implementiert, indem der Token des
-ausloggenden
-Benutzers gelöscht wird und damit ein neuer Token generiert werden muss.
-
-### base.sensors
-
-In dieser Ebenen wird die Entität Sensor definiert und alle Entitäten, die direkt einem Sensor zugeordnet sind.
-
-Hier sollte erwähnt werden, dass die Serializer für Producer und Consumer so definiert sind, dass die Sensoren zusammen
-mit einem Producer/Consumer erstellt werden und nicht seperat. Genauso wird ein User zusammen mit einem Konsumenten
-erstellt.
-
-##### Sensor
-
-Sensoren, sind die Entitäten, welche die konkreten Lorawan Sensoren abbilden, welche in unserem Projekt zum Einsatz
-kommen.
-Sensoren speichern die Gerätenummer und sind einem von drei Typen zugeordnet, damit eingehende Daten (siehe [input]())
-einem
-Sensor zugeordnet werden kann und ob dieser Sensor Produktion(PM), Netzeinspeisung(GM) oder Verbrauch(CM) misst.
-
-###### Attribute
-
-| Attribute   | Type                     | Description                                                                    |
-|:------------|:-------------------------|:-------------------------------------------------------------------------------|
-| `device_id` | `string`                 | Eindeutige Nummer (z.B EAN) aus datahub                                        |
-| `type`      | `ENUM["PM", "GM", "CM"]` | bestimmt ob es sich um einen Production-, Grid- oder Consumptionsensor handelt |
-
-##### Producer
-
-Ein Produzent (bspw. Solaranalge) bildet die oberste Einheit in unserem Projekt. Ein Produzent hat immer zwei Sensorenn,
-ein für die Produktion und einen für die Netzeinspeisung. Des Weiteren werden beschreibende Attribute gespeichert, wie
-ein
-Anzeigename oder eine Addresse
-
-###### Attribute
-
-| Attribute                 | Type       | Description                                                                                                                                                                                                                                              |
-|:--------------------------|:-----------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `name`                    | `string`   |                                                                                                                                                                                                                                                          |
-| `street`                  | `string`   |                                                                                                                                                                                                                                                          |
-| `city`                    | `string`   |                                                                                                                                                                                                                                                          |
-| `zip_code`                | `string`   |                                                                                                                                                                                                                                                          |
-| `peak_power`              | `integer`  |                                                                                                                                                                                                                                                          |
-| `production_sensor`       | `Sensor`   |                                                                                                                                                                                                                                                          |
-| `grid_sensor`             | `Sensor`   |                                                                                                                                                                                                                                                          |
-| `last_grid_reading`       | `datetime` | wird automatisch erstellt, wenn ein [Reading]() erstellt wird (siehe [update_last_reading](base/data/models.py)), und wird im [/input verarbeitung](input/input_handlers.py) genutzt,  um sich die Datenbankabfrage nach den jüngsten Readings zu sparen |
-| `last_production_reading` | `Sensor`   |                                                                                                                                                                                                                                                          |
-
-##### Consumer
-
-Ein Konsument(bspw. eine Wohneinheit) konsumiert Energie, welche von einem Sensor gemessen wird und ist genau einem
-Produzenten zugeordnet. Darüber hinaus werden Attribute zur Kontaktaufnahme gespeichert.
-Ein Konsument ist genau einem Benutzer zugeordnet, damit eine Authentifizierung
-
-###### Attribute
-
-| Attribute      | Type              | Description                                                                                                                                                                                                                                              |
-|:---------------|:------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `name`         | `string`          |                                                                                                                                                                                                                                                          |
-| `email`        | `string`          |                                                                                                                                                                                                                                                          |
-| `phone`        | `string`          |                                                                                                                                                                                                                                                          |
-| `user`         | `User`            |                                                                                                                                                                                                                                                          |
-| `sensor`       | `Sensor`          |                                                                                                                                                                                                                                                          |
-| `producer`     | `Producer.url`    |                                                                                                                                                                                                                                                          |
-| `rates`        | `Array<Rate.url>` |                                                                                                                                                                                                                                                          |
-| `last_reading` | `datetime`        | wird automatisch erstellt, wenn ein [Reading]() erstellt wird (siehe [update_last_reading](base/data/models.py)), und wird im [/input verarbeitung](input/input_handlers.py) genutzt,  um sich die Datenbankabfrage nach den jüngsten Readings zu sparen |
-
-#### base.data
 
 ## Daten Simulieren
 
@@ -135,11 +32,12 @@ gestartet werden, wie [oben](#installation-und-quick-start) beschrieben.
 
 Folgende Endpunkte sind nicht im Django REST GUI enthalten und werden im folgendem dokumentiert.
 
-- [/login]()
-    - [Authentisierung]()
-- [/logout]()
-- [/input]()
-- [/output]()
+- [/login](#login)
+    - [Authorization](#authorization)
+- [/logout](#logout)
+- [/input](#input)
+- [/output](#output)
+- [/setup](#setup)
 
 ### /login/
 
@@ -172,6 +70,12 @@ POST /login/
     }
 }
 ```
+
+#### Authorization
+
+Für Anfragen die Authorisierung benötigen, muss folgender Header gesetzt werden
+
+`Authorization: Token ...apitoken...`
 
 ### /logout/
 
@@ -345,4 +249,105 @@ POST /setup/
 | 208         | Data already exists, setup is not necessary. |
 | 400         | The request was malformed or invalid. (probably timestamp) |
 | 404         | The requested producer could not be found. |
+
+## Struktur
+
+Das Django Projekt ist in unterschiedliche Applikationen aufgeteilt. Diese sind zwar stark verkoppelt, aber haben
+unterschiedliche Aufgaben.
+
+- [base](#base)
+    - [base.sensors](#basesensors)
+    - [base.data]()
+    - [base.contracts]()
+- [input]()
+- [output]()
+
+_Die ReadMe ist nicht ganz vollständig und Verlinkungen teilweise nicht gesetzt_
+
+### base
+
+In _base_ werden alle Modelle und grundlegenden administrativen Serializer und Views definiert.
+In dieser Ebene wird der [UserSerializer](base/serializers.py) definiert und die [Views](base/views.py),
+also die API-Endpunkte definiert.
+
+##### User
+
+Viewset, für Dokumentation siehe [Django REST GUI](#api---endpunkte)
+
+##### CustomLogin
+
+Für API-DOkumentation siehe [hier]()  
+Diese Klasse erweitert die von Standard Klasse für Token Authentifizierung von Django, damit zusätzlich zum Token,
+die Parameter is_admin und customer_id für den einloggenden User mitgesendet werden.
+
+##### Logout
+
+Für API-DOkumentation siehe [hier]()
+
+Hier wird ganz grundlegend eine Logout Funktion für Token-Authentifizierung implementiert, indem der Token des
+ausloggenden
+Benutzers gelöscht wird und damit ein neuer Token generiert werden muss.
+
+### base.sensors
+
+In dieser Ebenen wird die Entität Sensor definiert und alle Entitäten, die direkt einem Sensor zugeordnet sind.
+
+Hier sollte erwähnt werden, dass die Serializer für Producer und Consumer so definiert sind, dass die Sensoren zusammen
+mit einem Producer/Consumer erstellt werden und nicht seperat. Genauso wird ein User zusammen mit einem Konsumenten
+erstellt.
+
+##### Sensor
+
+Sensoren, sind die Entitäten, welche die konkreten Lorawan Sensoren abbilden, welche in unserem Projekt zum Einsatz
+kommen.
+Sensoren speichern die Gerätenummer und sind einem von drei Typen zugeordnet, damit eingehende Daten (siehe [input]())
+einem
+Sensor zugeordnet werden kann und ob dieser Sensor Produktion(PM), Netzeinspeisung(GM) oder Verbrauch(CM) misst.
+
+###### Attribute
+
+| Attribute   | Type                     | Description                                                                    |
+|:------------|:-------------------------|:-------------------------------------------------------------------------------|
+| `device_id` | `string`                 | Eindeutige Nummer (z.B EAN) aus datahub                                        |
+| `type`      | `ENUM["PM", "GM", "CM"]` | bestimmt ob es sich um einen Production-, Grid- oder Consumptionsensor handelt |
+
+##### Producer
+
+Ein Produzent (bspw. Solaranalge) bildet die oberste Einheit in unserem Projekt. Ein Produzent hat immer zwei Sensorenn,
+ein für die Produktion und einen für die Netzeinspeisung. Des Weiteren werden beschreibende Attribute gespeichert, wie
+ein
+Anzeigename oder eine Addresse
+
+###### Attribute
+
+| Attribute                 | Type       | Description                                                                                                                                                                                                                                              |
+|:--------------------------|:-----------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`                    | `string`   |                                                                                                                                                                                                                                                          |
+| `street`                  | `string`   |                                                                                                                                                                                                                                                          |
+| `city`                    | `string`   |                                                                                                                                                                                                                                                          |
+| `zip_code`                | `string`   |                                                                                                                                                                                                                                                          |
+| `peak_power`              | `integer`  |                                                                                                                                                                                                                                                          |
+| `production_sensor`       | `Sensor`   |                                                                                                                                                                                                                                                          |
+| `grid_sensor`             | `Sensor`   |                                                                                                                                                                                                                                                          |
+| `last_grid_reading`       | `datetime` | wird automatisch erstellt, wenn ein [Reading]() erstellt wird (siehe [update_last_reading](base/data/models.py)), und wird im [/input verarbeitung](input/input_handlers.py) genutzt,  um sich die Datenbankabfrage nach den jüngsten Readings zu sparen |
+| `last_production_reading` | `Sensor`   |                                                                                                                                                                                                                                                          |
+
+##### Consumer
+
+Ein Konsument(bspw. eine Wohneinheit) konsumiert Energie, welche von einem Sensor gemessen wird und ist genau einem
+Produzenten zugeordnet. Darüber hinaus werden Attribute zur Kontaktaufnahme gespeichert.
+Ein Konsument ist genau einem Benutzer zugeordnet, damit eine Authentifizierung
+
+###### Attribute
+
+| Attribute      | Type              | Description                                                                                                                                                                                                                                              |
+|:---------------|:------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `name`         | `string`          |                                                                                                                                                                                                                                                          |
+| `email`        | `string`          |                                                                                                                                                                                                                                                          |
+| `phone`        | `string`          |                                                                                                                                                                                                                                                          |
+| `user`         | `User`            |                                                                                                                                                                                                                                                          |
+| `sensor`       | `Sensor`          |                                                                                                                                                                                                                                                          |
+| `producer`     | `Producer.url`    |                                                                                                                                                                                                                                                          |
+| `rates`        | `Array<Rate.url>` |                                                                                                                                                                                                                                                          |
+| `last_reading` | `datetime`        | wird automatisch erstellt, wenn ein [Reading]() erstellt wird (siehe [update_last_reading](base/data/models.py)), und wird im [/input verarbeitung](input/input_handlers.py) genutzt,  um sich die Datenbankabfrage nach den jüngsten Readings zu sparen |
 
